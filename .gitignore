@@ -1,0 +1,18 @@
+# created by virtualenv automatically
+# Python虚拟环境&解释器
+venv/
+env/
+__pycache__/
+Scripts/
+Lib/
+
+# IDE配置
+.idea/
+
+# 数据库文件
+*.db
+*.sqlite
+
+# 临时文件
+*.tmp
+*.log

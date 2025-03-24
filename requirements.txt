@@ -1,0 +1,47 @@
+# 核心Flask
+Flask==2.2.5
+Flask-SQLAlchemy==3.0.3
+Flask-Migrate==4.0.4
+Flask-WTF==1.1.1
+Flask-Login==0.6.2
+Flask-CORS==3.0.10
+Flask-RESTful==0.3.10
+
+# 数据库
+SQLAlchemy==2.0.12
+PyMySQL==1.0.3
+# 或者使用 psycopg2==2.9.6 (用于PostgreSQL)
+
+# 安全性
+Flask-Security-Too==5.1.2
+Flask-Bcrypt==1.0.1
+PyJWT==2.6.0
+Flask-Limiter==3.3.1
+
+# R语言集成
+rpy2==3.5.17
+pandas==2.0.1
+numpy==1.24.3
+
+# 代码执行
+docker==6.1.2
+
+# 前端
+Flask-Assets==2.0
+Werkzeug==2.3.4
+Bootstrap-Flask==2.2.0
+
+# 测试
+pytest==7.3.1
+Flask-Testing==0.8.1
+
+# 部署
+gunicorn==20.1.0
+supervisor==4.2.5
+Flask-Caching==2.0.2
+
+# 工具
+python-dotenv==1.0.0
+Celery==5.2.7
+Flask-Mail==0.9.1
+Flask-Excel==0.0.7
