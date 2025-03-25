@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>简单表单 - R语言在线考试系统</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        form {
+            margin-top: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f8f8;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>简单R代码测试</h1>
+
+        <!-- 表单的action属性指定表单提交的URL，method指定HTTP请求方法 -->
+        <form action="/submit" method="post">
+            <div class="form-group">
+                <label for="r_code">输入R语言代码:</label>
+                <input type="text" id="r_code" name="r_code" placeholder="例如: 2 + 2" required>
+            </div>
+            <button type="submit">运行代码</button>
+        </form>
+
+        <!-- 如果有结果，则显示结果 -->
+        {% if result %}
+        <div class="result">
+            <h3>运行结果:</h3>
+            <p>{{ result }}</p>
+        </div>
+        {% endif %}
+
+        <p><a href="/">返回首页</a></p>
+    </div>
+</body>
+</html>
