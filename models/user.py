@@ -1,15 +1,18 @@
-from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
-
-db = SQLAlchemy()
+# 在添加认证系统部分
+from flask_login import UserMixin
+from models.db import db
 
 # 定义用户角色的常量
 ROLE_STUDENT = 'student'
 ROLE_TEACHER = 'teacher'
 ROLE_ADMIN = 'admin'
 
-class User(db.Model):
+# 在添加认证系统部分
+# 在SQLAlchemy ORM的模型类基础上添加Flask-Login提供的混入类
+# 继承这两个类后，User类既能与数据库交互，又具备了用户认证的功能
+class User(db.Model, UserMixin):
     __tablename__ = 'user'
 
     id = db.Column(db.Integer, primary_key=True)
@@ -49,3 +52,17 @@ class User(db.Model):
 
     def __repr__(self):
         return f'<User {self.username}, Role: {self.role}>'
+
+    # 在添加认证系统部分
+    # 添加用户权限方法
+    def can_create_question(self):
+        return self.is_teacher() or self.is_admin()
+
+    def can_create_exam(self):
+        return self.is_teacher() or self.is_admin()
+
+    def can_view_all_scores(self):
+        return self.is_teacher() or self.is_admin()
+
+    def can_manage_users(self):
+        return self.is_admin()
