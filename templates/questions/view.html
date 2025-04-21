@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}查看题目{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>题目详情</h1>
+        <div>
+            <a href="{{ url_for('questions.index') }}" class="btn btn-secondary">返回题库</a>
+            {% if current_user.is_admin() or current_user.is_teacher() or question.creator_id == current_user.id %}
+            <a href="{{ url_for('questions.edit', id=question.id) }}" class="btn btn-primary">编辑题目</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+                {% if question.is_choice() %}
+                <span class="badge bg-primary">选择题</span>
+                {% elif question.is_fill_blank() %}
+                <span class="badge bg-success">填空题</span>
+                {% elif question.is_programming() %}
+                <span class="badge bg-warning">编程题</span>
+                {% endif %}
+                <span class="badge bg-info">难度: {{ question.difficulty }}</span>
+                <span class="badge bg-secondary">{{ question.score_default }}分</span>
+            </div>
+            <small class="text-muted">创建时间: {{ question.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+        </div>
+        <div class="card-body">
+            <h3 class="card-title">{{ question.title }}</h3>
+
+            {% if question.category %}
+            <div class="mb-2">
+                <strong>分类:</strong> {{ question.category.name }}
+            </div>
+            {% endif %}
+
+            {% if question.tags %}
+            <div class="mb-3">
+                <strong>标签:</strong>
+                {% for tag in question.tags %}
+                <span class="badge bg-light text-dark">{{ tag.name }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <div class="mb-4">
+                <h5>题目内容:</h5>
+                <div class="p-3 bg-light rounded">
+                    {{ question.content|safe }}
+                </div>
+            </div>
+
+            {% if question.is_choice() and question.options %}
+            <div class="mb-4">
+                <h5>选项:</h5>
+                <div class="list-group">
+                    {% for option in question.options %}
+                    <div class="list-group-item {% if option.is_correct %}list-group-item-success{% endif %}">
+                        <div class="d-flex align-items-center">
+                            <div class="me-3">{{ loop.index }}.</div>
+                            <div>{{ option.content }}</div>
+                            {% if option.is_correct %}
+                            <div class="ms-auto badge bg-success">正确答案</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if question.is_fill_blank() and question.correct_answer %}
+            <div class="mb-4">
+                <h5>正确答案:</h5>
+                <div class="p-3 bg-light rounded">{{ question.correct_answer }}</div>
+            </div>
+            {% endif %}
+
+            {% if question.is_programming() and (current_user.is_admin() or current_user.is_teacher() or question.creator_id == current_user.id) %}
+            <div class="mb-4">
+                <h5>参考代码:</h5>
+                <pre class="p-3 bg-light rounded"><code>{{ question.reference_code }}</code></pre>
+            </div>
+
+            <div class="mb-4">
+                <h5>测试代码:</h5>
+                <pre class="p-3 bg-light rounded"><code>{{ question.test_code }}</code></pre>
+            </div>
+            {% endif %}
+
+            {% if question.explanation %}
+            <div class="mb-4">
+                <h5>题目解析:</h5>
+                <div class="p-3 bg-light rounded">{{ question.explanation|safe }}</div>
+            </div>
+            {% endif %}
+
+            <div>
+                <strong>创建者:</strong> {{ question.creator.username if question.creator else '未知' }}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

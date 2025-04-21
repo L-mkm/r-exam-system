@@ -77,6 +77,11 @@ def create_app():
         ## 创建所有表
         # db.create_all()
 
+    # 第五次修改
+    # 注册题库管理蓝图
+    from questions import questions_bp
+    app.register_blueprint(questions_bp, url_prefix='/questions')
+
     # 使用路由装饰器定义一个路由
     # '@app.route('/')' 表示这个函数处理根URL的请求
     # 当用户访问网站首页时，这个函数会被调用

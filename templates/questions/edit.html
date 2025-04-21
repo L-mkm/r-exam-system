@@ -1,0 +1,277 @@
+{% extends "base.html" %}
+
+{% block title %}编辑题目{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>编辑题目</h1>
+    <div class="card">
+        <div class="card-body">
+            <form method="post" enctype="multipart/form-data">
+                {{ form.csrf_token }}
+                {{ form.id() }}
+
+                <!-- 基本信息 -->
+                <div class="row mb-3">
+                    <div class="col-md-8">
+                        <div class="mb-3">
+                            {{ form.title.label(class="form-label") }}
+                            {{ form.title(class="form-control") }}
+                            {% if form.title.errors %}
+                            <div class="text-danger">
+                                {% for error in form.title.errors %}
+                                {{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            {{ form.question_type.label(class="form-label") }}
+                            {{ form.question_type(class="form-control", disabled=True) }}
+                            <small class="text-muted">题目类型无法修改</small>
+                            {% if form.question_type.errors %}
+                            <div class="text-danger">
+                                {% for error in form.question_type.errors %}
+                                {{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            {{ form.category_id.label(class="form-label") }}
+                            {{ form.category_id(class="form-control") }}
+                            {% if form.category_id.errors %}
+                            <div class="text-danger">
+                                {% for error in form.category_id.errors %}
+                                {{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            {{ form.difficulty.label(class="form-label") }}
+                            {{ form.difficulty(class="form-control") }}
+                            {% if form.difficulty.errors %}
+                            <div class="text-danger">
+                                {% for error in form.difficulty.errors %}
+                                {{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            {{ form.score_default.label(class="form-label") }}
+                            {{ form.score_default(class="form-control") }}
+                            {% if form.score_default.errors %}
+                            <div class="text-danger">
+                                {% for error in form.score_default.errors %}
+                                {{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    {{ form.tags.label(class="form-label") }}
+                    {{ form.tags(class="form-control") }}
+                    <small class="text-muted">多个标签请用逗号分隔</small>
+                    {% if form.tags.errors %}
+                    <div class="text-danger">
+                        {% for error in form.tags.errors %}
+                        {{ error }}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="mb-3">
+                    {{ form.content.label(class="form-label") }}
+                    {{ form.content(class="form-control", rows=5) }}
+                    {% if form.content.errors %}
+                    <div class="text-danger">
+                        {% for error in form.content.errors %}
+                        {{ error }}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- 选择题选项 -->
+                {% if question.is_choice() %}
+                <div id="choiceOptions" class="mb-3">
+                    <h5>选择题选项</h5>
+                    <div id="optionsContainer">
+                        {{ form.options.label(class="form-label") }}
+
+                        {% for option in form.options %}
+                        <div class="option-row mb-2">
+                            <div class="row">
+                                <div class="col-md-9">
+                                    {{ option.content(class="form-control", placeholder="选项内容") }}
+                                    {% if option.id %}{{ option.id() }}{% endif %}
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="form-check mt-2">
+                                        {{ option.is_correct(class="form-check-input") }}
+                                        {{ option.is_correct.label(class="form-check-label") }}
+                                    </div>
+                                </div>
+                                <div class="col-md-1">
+                                    <button type="button" class="btn btn-danger remove-option">删除</button>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <button type="button" id="addOption" class="btn btn-secondary mt-2">添加选项</button>
+                </div>
+                {% endif %}
+
+                <!-- 填空题答案 -->
+                {% if question.is_fill_blank() %}
+                <div id="fillBlankAnswer" class="mb-3">
+                    <h5>填空题答案</h5>
+                    <div class="mb-3">
+                        {{ form.correct_answer.label(class="form-label") }}
+                        {{ form.correct_answer(class="form-control") }}
+                        <small class="text-muted">填空题的标准答案</small>
+                        {% if form.correct_answer.errors %}
+                        <div class="text-danger">
+                            {% for error in form.correct_answer.errors %}
+                            {{ error }}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- 编程题参考答案和测试用例 -->
+                {% if question.is_programming() %}
+                <div id="programmingDetails" class="mb-3">
+                    <h5>编程题设置</h5>
+                    <div class="mb-3">
+                        {{ form.reference_code.label(class="form-label") }}
+                        {{ form.reference_code(class="form-control", rows=5) }}
+                        <small class="text-muted">提供参考R代码（仅供教师参考，不会展示给学生）</small>
+                        {% if form.reference_code.errors %}
+                        <div class="text-danger">
+                            {% for error in form.reference_code.errors %}
+                            {{ error }}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.test_code.label(class="form-label") }}
+                        {{ form.test_code(class="form-control", rows=5) }}
+                        <small class="text-muted">编写用于测试学生代码的R脚本</small>
+                        {% if form.test_code.errors %}
+                        <div class="text-danger">
+                            {% for error in form.test_code.errors %}
+                            {{ error }}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- 解析 -->
+                <div class="mb-3">
+                    {{ form.explanation.label(class="form-label") }}
+                    {{ form.explanation(class="form-control", rows=3) }}
+                    <small class="text-muted">题目解析（学生提交后或考试结束后可见）</small>
+                    {% if form.explanation.errors %}
+                    <div class="text-danger">
+                        {% for error in form.explanation.errors %}
+                        {{ error }}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="text-center">
+                    <button type="submit" class="btn btn-primary">保存修改</button>
+                    <a href="{{ url_for('questions.view', id=question.id) }}" class="btn btn-secondary">取消</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% block scripts %}
+<script>
+    // 为已有的删除按钮添加事件监听
+    document.addEventListener('DOMContentLoaded', function() {
+        // 选择题选项添加和删除逻辑
+        const addOptionBtn = document.getElementById('addOption');
+        if (addOptionBtn) {
+            addOptionBtn.addEventListener('click', function() {
+                const optionsContainer = document.getElementById('optionsContainer');
+                const optionCount = optionsContainer.querySelectorAll('.option-row').length;
+
+                const newOption = document.createElement('div');
+                newOption.className = 'option-row mb-2';
+                newOption.innerHTML = `
+                    <div class="row">
+                        <div class="col-md-9">
+                            <input class="form-control" name="options-${optionCount}-content" placeholder="选项内容">
+                        </div>
+                        <div class="col-md-2">
+                            <div class="form-check mt-2">
+                                <input class="form-check-input" id="options-${optionCount}-is_correct" name="options-${optionCount}-is_correct" type="checkbox">
+                                <label class="form-check-label" for="options-${optionCount}-is_correct">正确答案</label>
+                            </div>
+                        </div>
+                        <div class="col-md-1">
+                            <button type="button" class="btn btn-danger remove-option">删除</button>
+                        </div>
+                    </div>
+                `;
+
+                optionsContainer.appendChild(newOption);
+
+                // 为新添加的删除按钮添加事件监听
+                const removeBtn = newOption.querySelector('.remove-option');
+                removeBtn.addEventListener('click', function() {
+                    optionsContainer.removeChild(newOption);
+                });
+            });
+        }
+
+        // 为所有已有的删除按钮添加事件监听
+        document.querySelectorAll('.remove-option').forEach(button => {
+            button.addEventListener('click', function() {
+                const optionRow = this.closest('.option-row');
+                // 如果是已有选项，添加一个隐藏字段来标记删除
+                const optionId = optionRow.querySelector('input[name$="id"]');
+                if (optionId) {
+                    const deleteField = document.createElement('input');
+                    deleteField.type = 'hidden';
+                    deleteField.name = `delete-option-${optionId.value}`;
+                    deleteField.value = 'true';
+                    document.querySelector('form').appendChild(deleteField);
+                }
+
+                optionRow.parentNode.removeChild(optionRow);
+            });
+        });
+    });
+</script>
+{% endblock %}
+{% endblock %}
