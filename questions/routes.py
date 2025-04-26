@@ -7,6 +7,8 @@ from models.question import Question
 from models.question_option import QuestionOption
 from models.category import Category
 from models.tag import Tag
+# 第六次：debug
+from models.exam import Exam
 from forms.question import QuestionForm, QuestionSearchForm
 
 
@@ -84,15 +86,29 @@ def create():
     # 填充分类下拉列表
     form.category_id.choices = [(c.id, c.name) for c in Category.query.order_by(Category.name).all()]
 
+    # 找不出问题我服了
+    # 找到了，这段先留下，以后记得删
+    #if request.method == 'POST':
+        ## 添加这些调试打印
+        #print("提交的表单数据:", request.form)
+        #valid = form.validate()
+        #print("表单验证结果:", valid)
+        #if not valid:
+            #print("验证错误:", form.errors)
+
     if form.validate_on_submit():
         # 创建新题目
+        title = form.title.data if form.title.data else "无题目"  # 添加默认标题
+        category_id = form.category_id.data if form.category_id.data != 0 else None
+
         question = Question(
             title=form.title.data,
             content=form.content.data,
             question_type=form.question_type.data,
             difficulty=form.difficulty.data,
             score_default=form.score_default.data,
-            category_id=form.category_id.data,
+            # 第六次：category_id=form.category_id.data,
+            category_id=category_id,
             answer_template=form.answer_template.data if form.question_type.data == 'programming' else None,
             standard_answer=form.standard_answer.data,
             explanation=form.explanation.data,
@@ -119,6 +135,12 @@ def create():
                     order=option_form['order']
                 )
                 question.options.append(option)
+
+        if form.question_type.data == 'fill_blank':
+            question.standard_answer = form.standard_answer.data
+        else:
+            # 选择题和编程题的标准答案逻辑
+            question.standard_answer = None if form.question_type.data == 'choice' else form.standard_answer.data
 
         db.session.add(question)
         db.session.commit()

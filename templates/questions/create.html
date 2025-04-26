@@ -7,7 +7,7 @@
     <h1>创建新题目</h1>
     <div class="card">
         <div class="card-body">
-            <form method="post" enctype="multipart/form-data">
+            <form method="post" enctype="multipart/form-data" novalidate>
                 {{ form.csrf_token }}
 
                 <!-- 基本信息 -->
@@ -111,7 +111,6 @@
                 <div id="choiceOptions" class="mb-3" style="display: none;">
                     <h5>选择题选项</h5>
                     <div id="optionsContainer">
-                        {{ form.options.label(class="form-label") }}
 
                         {% for option in form.options %}
                         <div class="option-row mb-2">
@@ -139,12 +138,12 @@
                 <div id="fillBlankAnswer" class="mb-3" style="display: none;">
                     <h5>填空题答案</h5>
                     <div class="mb-3">
-                        {{ form.correct_answer.label(class="form-label") }}
-                        {{ form.correct_answer(class="form-control") }}
-                        <small class="text-muted">填空题的标准答案</small>
-                        {% if form.correct_answer.errors %}
+                        {{ form.standard_answer.label(class="form-label") }}
+                        {{ form.standard_answer(class="form-control") }}
+                        <small class="text-muted">填空题的标准答案，可设置多个正确答案，用分号(;)分隔，例如: 42;四十二;forty-two</small>
+                        {% if form.standard_answer.errors %}
                         <div class="text-danger">
-                            {% for error in form.correct_answer.errors %}
+                            {% for error in form.standard_answer.errors %}
                             {{ error }}
                             {% endfor %}
                         </div>
@@ -156,12 +155,12 @@
                 <div id="programmingDetails" class="mb-3" style="display: none;">
                     <h5>编程题设置</h5>
                     <div class="mb-3">
-                        {{ form.reference_code.label(class="form-label") }}
-                        {{ form.reference_code(class="form-control", rows=5) }}
+                        {{ form.answer_template.label(class="form-label") }}
+                        {{ form.answer_template(class="form-control", rows=5) }}
                         <small class="text-muted">提供参考R代码（仅供教师参考，不会展示给学生）</small>
-                        {% if form.reference_code.errors %}
+                        {% if form.answer_template.errors %}
                         <div class="text-danger">
-                            {% for error in form.reference_code.errors %}
+                            {% for error in form.answer_template.errors %}
                             {{ error }}
                             {% endfor %}
                         </div>
@@ -223,11 +222,12 @@
             programmingDetails.style.display = 'none';
 
             // 根据选择显示对应区域
-            if (selectedType === '1') { // 选择题
+            // debug：修改了JavaScript中的条件判断
+            if (selectedType === 'choice') { // 选择题
                 choiceOptions.style.display = 'block';
-            } else if (selectedType === '2') { // 填空题
+            } else if (selectedType === 'fill_blank') { // 填空题
                 fillBlankAnswer.style.display = 'block';
-            } else if (selectedType === '3') { // 编程题
+            } else if (selectedType === 'programming') { // 编程题
                 programmingDetails.style.display = 'block';
             }
         }
@@ -242,20 +242,19 @@
         const addOptionBtn = document.getElementById('addOption');
         if (addOptionBtn) {
             addOptionBtn.addEventListener('click', function() {
-                const optionsContainer = document.getElementById('optionsContainer');
-                const optionCount = optionsContainer.querySelectorAll('.option-row').length;
+                const optionIndex = document.querySelectorAll('.option-row').length;
 
                 const newOption = document.createElement('div');
                 newOption.className = 'option-row mb-2';
                 newOption.innerHTML = `
                     <div class="row">
                         <div class="col-md-9">
-                            <input class="form-control" name="options-${optionCount}-content" placeholder="选项内容">
+                            <textarea class="form-control" name="options-${optionIndex}-content" id="options-${optionIndex}-content" placeholder="选项内容"></textarea>
                         </div>
                         <div class="col-md-2">
                             <div class="form-check mt-2">
-                                <input class="form-check-input" id="options-${optionCount}-is_correct" name="options-${optionCount}-is_correct" type="checkbox">
-                                <label class="form-check-label" for="options-${optionCount}-is_correct">正确答案</label>
+                                <input class="form-check-input" id="options-${optionIndex}-is_correct" name="options-${optionIndex}-is_correct" type="checkbox">
+                                <label class="form-check-label" for="options-${optionIndex}-is_correct">正确答案</label>
                             </div>
                         </div>
                         <div class="col-md-1">
@@ -282,6 +281,73 @@
             });
         });
     });
+    document.querySelector('form').addEventListener('submit', function(event) {
+  const questionType = document.getElementById('question_type').value;
+
+  // 先处理所有选项
+  document.querySelectorAll('.option-row textarea, .option-row input[type="checkbox"]').forEach(el => {
+    if (questionType !== 'choice') {
+      // 不是选择题时，给选项设置空值或默认值
+      if (el.tagName === 'TEXTAREA') {
+        el.value = ' '; // 空格比空字符串更可靠
+      } else if (el.type === 'checkbox') {
+        el.checked = false;
+      }
+    } else {
+      // 选择题时确保选项数据正确
+      if (el.tagName === 'TEXTAREA') {
+        if (!el.value.trim()) {
+          el.value = ' '; // 空格作为最小值
+        }
+      }
+    }
+
+    // 重要：不要禁用任何字段
+    el.disabled = false;
+  });
+
+  // 处理标准答案字段
+  if (questionType === 'choice') {
+    // 选择题情况
+    document.getElementById('standard_answer').value = 'N/A';
+
+    // 检查是否至少有一个正确选项
+    const correctOptions = document.querySelectorAll('input[name$="-is_correct"]:checked');
+    if (correctOptions.length === 0) {
+      event.preventDefault();
+      alert('选择题必须至少选择一个正确选项');
+      return;
+    }
+  } else if (questionType === 'fill_blank') {
+    // 填空题情况
+    const standardAnswer = document.getElementById('standard_answer');
+    if (!standardAnswer.value.trim()) {
+      event.preventDefault();
+      alert('填空题必须填写标准答案');
+      return;
+    }
+  } else if (questionType === 'programming') {
+    // 编程题情况
+    document.getElementById('standard_answer').value = 'See code template';
+  }
+
+  // 调整选项名称以符合Flask-WTF格式
+  const options = document.querySelectorAll('.option-row');
+  options.forEach((option, index) => {
+    const contentField = option.querySelector('textarea, input[name$="-content"]');
+    const correctField = option.querySelector('input[name$="-is_correct"]');
+
+    if (contentField) {
+      contentField.name = `options-${index}-content`;
+    }
+    if (correctField) {
+      correctField.name = `options-${index}-is_correct`;
+    }
+  });
+
+  // 确保表单能够提交
+  console.log("表单提交中，题目类型:", questionType);
+});
 </script>
 {% endblock %}
 {% endblock %}

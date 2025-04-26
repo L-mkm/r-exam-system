@@ -12,6 +12,7 @@ from datetime import datetime
 import os
 from models.db import db  # 导入已存在的SQLAlchemy实例，不要再创建新的
 
+
 # 第三次修改：创建数据库实例
 # 第四次修改：删除了这里
 # db = SQLAlchemy()
@@ -60,22 +61,36 @@ def create_app():
         # from models.student_answer import StudentAnswer
 
     # 上段改成了：
+    from models.category import Category # 第六次新增
     def load_models():
         from models.user import User
+        # 第六次（以后每次修改完模型记得回这里）
+        from models.category import Category  # 添加分类模型
+        from models.tag import Tag  # 添加标签模型
+        from models.question_tag import question_tag  # 添加题目-标签关联表
         from models.question import Question
+        from models.question_option import QuestionOption  # 添加题目选项模型
         from models.exam import Exam
         from models.exam_question import ExamQuestion
         from models.score import Score
         from models.student_answer import StudentAnswer
-        return [User, Question, Exam, ExamQuestion, Score, StudentAnswer]
+        return [User, Category, Tag, question_tag, Question, QuestionOption, Exam, ExamQuestion, Score, StudentAnswer]
 
     with app.app_context():
         models = load_models()
         print(f"加载了 {len(models)} 个数据库模型")
-        db.create_all()
-
-        ## 创建所有表
+        # a.不想删除已有数据:
         # db.create_all()
+
+        # b.想重建表但保留默认数据:
+        db.drop_all()  # 先删除所有表
+        db.create_all()  # 再创建表
+
+        # 添加默认分类
+        if Category.query.count() == 0:
+            default_category = Category(name="未分类")
+            db.session.add(default_category)
+            db.session.commit()
 
     # 第五次修改
     # 注册题库管理蓝图
