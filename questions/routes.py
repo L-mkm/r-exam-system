@@ -112,7 +112,9 @@ def create():
             answer_template=form.answer_template.data if form.question_type.data == 'programming' else None,
             standard_answer=form.standard_answer.data,
             explanation=form.explanation.data,
-            creator_id=current_user.id
+            creator_id=current_user.id,
+            # 第七次修改
+            test_code = form.test_code.data if form.question_type.data == 'programming' else None
         )
 
         # 处理标签
@@ -185,14 +187,21 @@ def edit(id):
 
     form = QuestionForm(obj=question)
 
+    # 立即处理标签，不等待GET判断
+    if request.method == 'GET':
+        # 确保tags字段显示的是标签名称的列表，而不是Tag对象的列表
+        form.tags.data = ', '.join([tag.name for tag in question.tags])
+
     # 填充分类下拉列表
     form.category_id.choices = [(c.id, c.name) for c in Category.query.order_by(Category.name).all()]
 
-    # 填充标签
-    if not form.tags.data and question.tags:
-        form.tags.data = ', '.join([tag.name for tag in question.tags])
-
     if form.validate_on_submit():
+        # 处理标签内容
+        tags_data = form.tags.data
+        if tags_data and isinstance(tags_data, str) and '[<Tag' in tags_data:
+            import re
+            tag_names = re.findall(r'<Tag ([^>]+)>', tags_data)
+            form.tags.data = ', '.join(tag_names)
         # 更新基本信息
         question.title = form.title.data
         question.content = form.content.data
@@ -203,6 +212,8 @@ def edit(id):
         question.answer_template = form.answer_template.data if form.question_type.data == 'programming' else None
         question.standard_answer = form.standard_answer.data
         question.explanation = form.explanation.data
+        # 第七次修改
+        question.test_code = form.test_code.data if form.question_type.data == 'programming' else None
 
         # 处理标签
         # 先清除旧标签
@@ -267,7 +278,7 @@ def delete(id):
         return redirect(url_for('questions.index'))
 
     # 检查题目是否已被使用
-    if question.exams.count() > 0:
+    if len(question.exams) > 0:
         flash('此题目已被用于考试，无法删除', 'danger')
         return redirect(url_for('questions.view', id=question.id))
 

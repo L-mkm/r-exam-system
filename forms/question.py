@@ -35,7 +35,7 @@ class QuestionForm(FlaskForm):
     test_code = TextAreaField('测试代码', validators=[Optional()])
 
     # 对于选择题的选项
-    options = FieldList(FormField(OptionForm), min_entries=2, max_entries=10)
+    options = FieldList(FormField(OptionForm), min_entries=2, max_entries=10, render_kw={"class": "hidden-label"})
 
     # 第六次
     def __init__(self, *args, **kwargs):

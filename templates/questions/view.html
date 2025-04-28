@@ -73,17 +73,17 @@
             </div>
             {% endif %}
 
-            {% if question.is_fill_blank() and question.correct_answer %}
+            {% if question.is_fill_blank() and question.standard_answer %}
             <div class="mb-4">
                 <h5>正确答案:</h5>
-                <div class="p-3 bg-light rounded">{{ question.correct_answer }}</div>
+                <div class="p-3 bg-light rounded">{{ question.standard_answer }}</div>
             </div>
             {% endif %}
 
             {% if question.is_programming() and (current_user.is_admin() or current_user.is_teacher() or question.creator_id == current_user.id) %}
             <div class="mb-4">
                 <h5>参考代码:</h5>
-                <pre class="p-3 bg-light rounded"><code>{{ question.reference_code }}</code></pre>
+                <pre class="p-3 bg-light rounded"><code>{{ question.answer_template }}</code></pre>
             </div>
 
             <div class="mb-4">

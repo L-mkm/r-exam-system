@@ -1,5 +1,15 @@
 {% extends "base.html" %}
 
+<style>
+  /* 隐藏选项标签 */
+  #optionsContainer > label,
+  .option-row > label,
+  options-0,
+  options-1 {
+    display: none;
+  }
+</style>
+
 {% block title %}编辑题目{% endblock %}
 
 {% block content %}
@@ -9,7 +19,6 @@
         <div class="card-body">
             <form method="post" enctype="multipart/form-data">
                 {{ form.csrf_token }}
-                {{ form.id() }}
 
                 <!-- 基本信息 -->
                 <div class="row mb-3">
@@ -114,14 +123,13 @@
                 <div id="choiceOptions" class="mb-3">
                     <h5>选择题选项</h5>
                     <div id="optionsContainer">
-                        {{ form.options.label(class="form-label") }}
 
                         {% for option in form.options %}
                         <div class="option-row mb-2">
                             <div class="row">
                                 <div class="col-md-9">
                                     {{ option.content(class="form-control", placeholder="选项内容") }}
-                                    {% if option.id %}{{ option.id() }}{% endif %}
+                                    {% if option.id %}<span style="display: none;">{{ option.id }}</span>{% endif %}
                                 </div>
                                 <div class="col-md-2">
                                     <div class="form-check mt-2">
@@ -145,12 +153,12 @@
                 <div id="fillBlankAnswer" class="mb-3">
                     <h5>填空题答案</h5>
                     <div class="mb-3">
-                        {{ form.correct_answer.label(class="form-label") }}
-                        {{ form.correct_answer(class="form-control") }}
+                        {{ form.standard_answer.label(class="form-label") }}
+                        {{ form.standard_answer(class="form-control") }}
                         <small class="text-muted">填空题的标准答案</small>
-                        {% if form.correct_answer.errors %}
+                        {% if form.standard_answer.errors %}
                         <div class="text-danger">
-                            {% for error in form.correct_answer.errors %}
+                            {% for error in form.standard_answer.errors %}
                             {{ error }}
                             {% endfor %}
                         </div>
@@ -164,12 +172,12 @@
                 <div id="programmingDetails" class="mb-3">
                     <h5>编程题设置</h5>
                     <div class="mb-3">
-                        {{ form.reference_code.label(class="form-label") }}
-                        {{ form.reference_code(class="form-control", rows=5) }}
+                        {{ form.answer_template.label(class="form-label") }}
+                        {{ form.answer_template(class="form-control", rows=5) }}
                         <small class="text-muted">提供参考R代码（仅供教师参考，不会展示给学生）</small>
-                        {% if form.reference_code.errors %}
+                        {% if form.answer_template.errors %}
                         <div class="text-danger">
-                            {% for error in form.reference_code.errors %}
+                            {% for error in form.answer_template.errors %}
                             {{ error }}
                             {% endfor %}
                         </div>
@@ -230,7 +238,7 @@
                 newOption.innerHTML = `
                     <div class="row">
                         <div class="col-md-9">
-                            <input class="form-control" name="options-${optionCount}-content" placeholder="选项内容">
+                            <textarea class="form-control" name="options-${optionCount}-content" placeholder="选项内容"></textarea>
                         </div>
                         <div class="col-md-2">
                             <div class="form-check mt-2">
