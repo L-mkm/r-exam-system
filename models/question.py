@@ -23,6 +23,8 @@ class Question(db.Model):
     creator_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     # 第七次修改
     test_code = db.Column(db.Text)  # R测试代码（对于编程题）
+    # 第八次修改
+    is_public = db.Column(db.Boolean, default=True)  # 是否所有教师可见
 
     # 第五次修改
     # 类别和标签关系

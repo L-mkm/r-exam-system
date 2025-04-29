@@ -55,8 +55,24 @@ def index():
     if difficulty_max > 0:
         query = query.filter(Question.difficulty <= difficulty_max)
 
-    # 如果不是管理员或教师，只能看到自己创建的题目
-    if not (current_user.is_admin() or current_user.is_teacher()):
+    # 第八次修改 这里先删了，以后考虑扩展
+    ## 如果不是管理员或教师，只能看到自己创建的题目
+    # if not (current_user.is_admin() or current_user.is_teacher()):
+        # query = query.filter(Question.creator_id == current_user.id)
+
+    # 第八次修改
+    # 如果不是管理员，只能看到自己的题目和公开题目
+    if current_user.is_admin():
+        # 管理员可以看到所有题目
+        pass
+    elif current_user.is_teacher():
+        # 教师可以看到自己的题目和其他公开题目
+        query = query.filter(or_(
+            Question.creator_id == current_user.id,
+            Question.is_public == True
+        ))
+    else:
+        # 学生只能看到自己参加的考试中的题目
         query = query.filter(Question.creator_id == current_user.id)
 
     # 分页
@@ -180,9 +196,15 @@ def edit(id):
     """编辑题目"""
     question = Question.query.get_or_404(id)
 
+    # 第八次修改，删除了以下
     # 检查权限 - 只有创建者、管理员或教师可以编辑
-    if not (current_user.is_admin() or current_user.is_teacher() or question.creator_id == current_user.id):
-        flash('您没有权限编辑此题目', 'danger')
+    # if not (current_user.is_admin() or current_user.is_teacher() or question.creator_id == current_user.id):
+        # flash('您没有权限编辑此题目', 'danger')
+        # return redirect(url_for('questions.index'))
+
+    # 改为：（管理员和题目创建者）
+    if not (current_user.is_admin() or question.creator_id == current_user.id):
+        flash('只有题目创建者和管理员可以编辑此题目', 'danger')
         return redirect(url_for('questions.index'))
 
     form = QuestionForm(obj=question)
@@ -214,6 +236,8 @@ def edit(id):
         question.explanation = form.explanation.data
         # 第七次修改
         question.test_code = form.test_code.data if form.question_type.data == 'programming' else None
+        # 第八次修改
+        question.is_public = form.is_public.data
 
         # 处理标签
         # 先清除旧标签
@@ -272,9 +296,15 @@ def delete(id):
     """删除题目"""
     question = Question.query.get_or_404(id)
 
+    # 第八次修改，删除了以下这行：
     # 检查权限 - 只有创建者、管理员或教师可以删除
-    if not (current_user.is_admin() or current_user.is_teacher() or question.creator_id == current_user.id):
-        flash('您没有权限删除此题目', 'danger')
+    # if not (current_user.is_admin() or current_user.is_teacher() or question.creator_id == current_user.id):
+        # flash('您没有权限删除此题目', 'danger')
+        # return redirect(url_for('questions.index'))
+
+    # 修改为：
+    if not (current_user.is_admin() or question.creator_id == current_user.id):
+        flash('只有题目创建者和管理员可以删除此题目', 'danger')
         return redirect(url_for('questions.index'))
 
     # 检查题目是否已被使用

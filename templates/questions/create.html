@@ -82,6 +82,12 @@
                     </div>
                 </div>
 
+                <div class="mb-3 form-check">
+                    {{ form.is_public(class="form-check-input") }}
+                    {{ form.is_public.label(class="form-check-label") }}
+                    <small class="text-muted">勾选后其他教师可以查看此题</small>
+                </div>
+
                 <div class="mb-3">
                     {{ form.tags.label(class="form-label") }}
                     {{ form.tags(class="form-control") }}

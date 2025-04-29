@@ -47,6 +47,15 @@
             </div>
             {% endif %}
 
+            <div class="mb-2">
+                <strong>公开状态:</strong>
+                {% if question.is_public %}
+                <span class="badge bg-success">公开</span>
+                {% else %}
+                <span class="badge bg-warning">私有</span>
+                {% endif %}
+            </div>
+
             <div class="mb-4">
                 <h5>题目内容:</h5>
                 <div class="p-3 bg-light rounded">

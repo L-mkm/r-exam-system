@@ -36,6 +36,8 @@ class QuestionForm(FlaskForm):
 
     # 对于选择题的选项
     options = FieldList(FormField(OptionForm), min_entries=2, max_entries=10, render_kw={"class": "hidden-label"})
+    # 第八次修改
+    is_public = BooleanField('公开此题目', default=True)
 
     # 第六次
     def __init__(self, *args, **kwargs):
