@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}编辑考试{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>编辑考试</h1>
+    <div class="card">
+        <div class="card-body">
+            <form method="post" id="examForm">
+                {{ form.csrf_token }}
+
+                <!-- 基本信息 -->
+                <div class="mb-3">
+                    {{ form.title.label(class="form-label") }}
+                    {{ form.title(class="form-control") }}
+                    {% if form.title.errors %}
+                    <div class="text-danger">
+                        {% for error in form.title.errors %}
+                        {{ error }}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="mb-3">
+                    {{ form.description.label(class="form-label") }}
+                    {{ form.description(class="form-control", rows=3) }}
+                    {% if form.description.errors %}
+                    <div class="text-danger">
+                        {% for error in form.description.errors %}
+                        {{ error }}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        {{ form.start_time.label(class="form-label") }}
+                        {{ form.start_time(class="form-control", type="datetime-local") }}
+                        {% if form.start_time.errors %}
+                        <div class="text-danger">
+                            {% for error in form.start_time.errors %}
+                            {{ error }}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        {{ form.end_time.label(class="form-label") }}
+                        {{ form.end_time(class="form-control", type="datetime-local") }}
+                        {% if form.end_time.errors %}
+                        <div class="text-danger">
+                            {% for error in form.end_time.errors %}
+                            {{ error }}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="mb-3 form-check">
+                    {{ form.is_published(class="form-check-input") }}
+                    {{ form.is_published.label(class="form-check-label") }}
+                    <small class="text-muted">勾选后学生将可以看到此考试</small>
+                </div>
+
+                <div class="text-center">
+                    <button type="submit" class="btn btn-primary">保存修改</button>
+                    <a href="{{ url_for('exams.manage_questions', id=exam.id) }}" class="btn btn-info">管理题目</a>
+                    <a href="{{ url_for('exams.view', id=exam.id) }}" class="btn btn-secondary">取消</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

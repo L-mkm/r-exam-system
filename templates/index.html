@@ -104,7 +104,7 @@
                 {% if current_user.is_teacher() or current_user.is_admin() %}
                     <!-- 第六次修改，debug（太好了是硬编码我完了）： -->
                     <a href="{{ url_for('questions.index') }}">管理题目</a>
-                    <a href="#">管理考试</a>
+                    <a href="{{ url_for('exams.index') }}">管理考试</a>
                 {% endif %}
 
                 {% if current_user.is_admin() %}

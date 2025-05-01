@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}考试管理{% endblock %}
+
+{% block content %}
+{% set current_time = get_now() %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>考试管理</h1>
+        {% if current_user.is_admin() or current_user.is_teacher() %}
+        <a href="{{ url_for('exams.create') }}" class="btn btn-primary">创建新考试</a>
+        {% endif %}
+    </div>
+
+    <div class="row">
+        {% for exam in exams %}
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between">
+                    <div>
+                        {% if exam.is_published %}
+                        <span class="badge bg-success">已发布</span>
+                        {% else %}
+                        <span class="badge bg-warning">未发布</span>
+                        {% endif %}
+
+                        {% set current_time = get_now() %}
+                        {% if current_time < exam.start_time %}
+                        <span class="badge bg-info">未开始</span>
+                        {% elif current_time > exam.end_time %}
+                        <span class="badge bg-secondary">已结束</span>
+                        {% else %}
+                        <span class="badge bg-danger">进行中</span>
+                        {% endif %}
+                    </div>
+                    <small class="text-muted">创建于: {{ exam.created_at.strftime('%Y-%m-%d') }}</small>
+                </div>
+                <div class="card-body">
+                    <h5 class="card-title">{{ exam.title }}</h5>
+                    <p class="card-text">{{ exam.description|truncate(100) }}</p>
+
+                    <div class="mt-3">
+                        <div><strong>开始时间:</strong> {{ exam.start_time.strftime('%Y-%m-%d %H:%M') }}</div>
+                        <div><strong>结束时间:</strong> {{ exam.end_time.strftime('%Y-%m-%d %H:%M') }}</div>
+                        <div><strong>总分值:</strong> {{ exam.total_score }}</div>
+                        <div><strong>题目数量:</strong> {{ exam.questions|length }}</div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <a href="{{ url_for('exams.view', id=exam.id) }}" class="btn btn-sm btn-outline-primary">查看</a>
+
+                    {% if current_user.is_admin() or current_user.id == exam.creator_id %}
+                        {% if current_time < exam.start_time %}
+                        <a href="{{ url_for('exams.edit', id=exam.id) }}" class="btn btn-sm btn-outline-secondary">编辑</a>
+                        <a href="{{ url_for('exams.manage_questions', id=exam.id) }}" class="btn btn-sm btn-outline-info">管理题目</a>
+                        {% endif %}
+
+                        {% if not exam.is_published %}
+                        <form method="post" action="{{ url_for('exams.publish_exam', id=exam.id) }}" class="d-inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm btn-outline-success">发布考试</button>
+                        </form>
+                        {% else %}
+                        <form method="post" action="{{ url_for('exams.unpublish_exam', id=exam.id) }}" class="d-inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm btn-outline-warning">取消发布</button>
+                        </form>
+                        {% endif %}
+                    {% endif %}
+
+                    {% if current_user.is_student() and exam.is_published and current_time >= exam.start_time and current_time <= exam.end_time %}
+                    <a href="{{ url_for('exams.take_exam', id=exam.id) }}" class="btn btn-sm btn-primary">参加考试</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="col-12">
+            <div class="alert alert-info">
+                没有找到考试
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

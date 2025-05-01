@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}创建新考试{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>创建新考试</h1>
+    <div class="card">
+        <div class="card-body">
+            <form method="post" id="examForm">
+                {{ form.csrf_token }}
+
+                <!-- 基本信息 -->
+                <div class="mb-3">
+                    {{ form.title.label(class="form-label") }}
+                    {{ form.title(class="form-control") }}
+                    {% if form.title.errors %}
+                    <div class="text-danger">
+                        {% for error in form.title.errors %}
+                        {{ error }}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="mb-3">
+                    {{ form.description.label(class="form-label") }}
+                    {{ form.description(class="form-control", rows=3) }}
+                    {% if form.description.errors %}
+                    <div class="text-danger">
+                        {% for error in form.description.errors %}
+                        {{ error }}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        {{ form.start_time.label(class="form-label") }}
+                        {{ form.start_time(class="form-control", type="datetime-local") }}
+                        {% if form.start_time.errors %}
+                        <div class="text-danger">
+                            {% for error in form.start_time.errors %}
+                            {{ error }}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        {{ form.end_time.label(class="form-label") }}
+                        {{ form.end_time(class="form-control", type="datetime-local") }}
+                        {% if form.end_time.errors %}
+                        <div class="text-danger">
+                            {% for error in form.end_time.errors %}
+                            {{ error }}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="mb-3 form-check">
+                    {{ form.is_published(class="form-check-input") }}
+                    {{ form.is_published.label(class="form-check-label") }}
+                    <small class="text-muted">勾选后学生将可以看到此考试</small>
+                </div>
+
+                <!-- 随机抽题设置 -->
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <div class="form-check">
+                            {{ form.use_random_questions(class="form-check-input", id="toggleRandomQuestions") }}
+                            {{ form.use_random_questions.label(class="form-check-label") }}
+                        </div>
+                    </div>
+                    <div class="card-body" id="randomQuestionsSettings" style="display: none;">
+                        <div class="mb-3">
+                            {{ form.category_id.label(class="form-label") }}
+                            {{ form.category_id(class="form-control") }}
+                            <small class="text-muted">选择一个分类限制抽题范围，或选择"不限分类"</small>
+                        </div>
+
+                        <!-- 选择题设置 -->
+                        <div class="card mb-3">
+                            <div class="card-header">选择题设置</div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-4 mb-2">
+                                        {{ form.choice_count.label(class="form-label") }}
+                                        {{ form.choice_count(class="form-control") }}
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        {{ form.choice_difficulty_min.label(class="form-label") }}
+                                        {{ form.choice_difficulty_min(class="form-control") }}
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        {{ form.choice_difficulty_max.label(class="form-label") }}
+                                        {{ form.choice_difficulty_max(class="form-control") }}
+                                    </div>
+                                </div>
+                                <div class="mb-2">
+                                    {{ form.choice_score.label(class="form-label") }}
+                                    {{ form.choice_score(class="form-control") }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 填空题设置 -->
+                        <div class="card mb-3">
+                            <div class="card-header">填空题设置</div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-4 mb-2">
+                                        {{ form.fill_blank_count.label(class="form-label") }}
+                                        {{ form.fill_blank_count(class="form-control") }}
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        {{ form.fill_blank_difficulty_min.label(class="form-label") }}
+                                        {{ form.fill_blank_difficulty_min(class="form-control") }}
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        {{ form.fill_blank_difficulty_max.label(class="form-label") }}
+                                        {{ form.fill_blank_difficulty_max(class="form-control") }}
+                                    </div>
+                                </div>
+                                <div class="mb-2">
+                                    {{ form.fill_blank_score.label(class="form-label") }}
+                                    {{ form.fill_blank_score(class="form-control") }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 编程题设置 -->
+                        <div class="card mb-3">
+                            <div class="card-header">编程题设置</div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-4 mb-2">
+                                        {{ form.programming_count.label(class="form-label") }}
+                                        {{ form.programming_count(class="form-control") }}
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        {{ form.programming_difficulty_min.label(class="form-label") }}
+                                        {{ form.programming_difficulty_min(class="form-control") }}
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        {{ form.programming_difficulty_max.label(class="form-label") }}
+                                        {{ form.programming_difficulty_max(class="form-control") }}
+                                    </div>
+                                </div>
+                                <div class="mb-2">
+                                    {{ form.programming_score.label(class="form-label") }}
+                                    {{ form.programming_score(class="form-control") }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="text-center">
+                    <button type="submit" class="btn btn-primary">创建考试</button>
+                    <a href="{{ url_for('exams.index') }}" class="btn btn-secondary">取消</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const toggleRandomQuestions = document.getElementById('toggleRandomQuestions');
+        const randomQuestionsSettings = document.getElementById('randomQuestionsSettings');
+
+        // 初始显示状态
+        if (toggleRandomQuestions.checked) {
+            randomQuestionsSettings.style.display = 'block';
+        }
+
+        // 监听复选框变化
+        toggleRandomQuestions.addEventListener('change', function() {
+            if (this.checked) {
+                randomQuestionsSettings.style.display = 'block';
+            } else {
+                randomQuestionsSettings.style.display = 'none';
+            }
+        });
+    });
+</script>
+{% endblock %}
+{% endblock %}

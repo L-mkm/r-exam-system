@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+
+{% block title %}管理考试题目{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>管理考试题目</h1>
+        <div>
+            <a href="{{ url_for('exams.view', id=exam.id) }}" class="btn btn-secondary">返回考试详情</a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- 已添加题目 -->
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">已添加题目 ({{ exam_questions|length }})</h5>
+                    <span>总分: {{ exam.total_score }}</span>
+                </div>
+                <div class="card-body">
+                    {% if exam_questions %}
+                    <table class="table table-striped" id="questionTable">
+                        <thead>
+                            <tr>
+                                <th>序号</th>
+                                <th>题目类型</th>
+                                <th>题目标题</th>
+                                <th>分值</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sortableQuestions">
+                            {% for eq in exam_questions %}
+                            <tr data-question-id="{{ eq.question_id }}">
+                                <td class="question-order">{{ eq.order }}</td>
+                                <td>
+                                    {% if eq.question.is_choice() %}
+                                    <span class="badge bg-primary">选择题</span>
+                                    {% elif eq.question.is_fill_blank() %}
+                                    <span class="badge bg-success">填空题</span>
+                                    {% elif eq.question.is_programming() %}
+                                    <span class="badge bg-warning">编程题</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('questions.view', id=eq.question_id) }}" target="_blank">
+                                        {{ eq.question.title }}
+                                    </a>
+                                </td>
+                                <td>
+                                    <form class="update-score-form" method="post" action="{{ url_for('exams.update_question_score', id=exam.id, question_id=eq.question_id) }}">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <div class="input-group input-group-sm">
+                                            <input type="number" name="score" class="form-control" value="{{ eq.score }}" min="0" step="0.5">
+                                            <button type="submit" class="btn btn-outline-secondary">更新</button>
+                                        </div>
+                                    </form>
+                                </td>
+                                <td>
+                                    <form method="post" action="{{ url_for('exams.remove_question', id=exam.id, question_id=eq.question_id) }}" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-sm btn-danger">移除</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    <div class="mt-3">
+                        <button id="saveOrder" class="btn btn-primary">保存排序</button>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">尚未添加题目</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- 可用题目 -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">可添加题目</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <input type="text" id="searchQuestions" class="form-control" placeholder="搜索题目...">
+                    </div>
+
+                    <div class="list-group" id="availableQuestions">
+                        {% for question in available_questions %}
+                        <div class="list-group-item list-group-item-action">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1">{{ question.title }}</h6>
+                                <small>
+                                    {% if question.is_choice() %}
+                                    <span class="badge bg-primary">选择题</span>
+                                    {% elif question.is_fill_blank() %}
+                                    <span class="badge bg-success">填空题</span>
+                                    {% elif question.is_programming() %}
+                                    <span class="badge bg-warning">编程题</span>
+                                    {% endif %}
+                                </small>
+                            </div>
+                            <p class="mb-1">{{ question.content|truncate(80) }}</p>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <small>难度: {{ question.difficulty }}, 默认分值: {{ question.score_default }}</small>
+                                <form method="post" action="{{ url_for('exams.add_question', id=exam.id, question_id=question.id) }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-sm btn-success">添加</button>
+                                </form>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="alert alert-info">没有可添加的题目</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 初始化排序功能
+        const sortableList = document.getElementById('sortableQuestions');
+        if (sortableList) {
+            new Sortable(sortableList, {
+                animation: 150,
+                ghostClass: 'bg-light',
+                onEnd: function() {
+                    // 更新序号显示
+                    updateOrderNumbers();
+                }
+            });
+        }
+
+        // 更新序号显示
+        function updateOrderNumbers() {
+            document.querySelectorAll('#sortableQuestions tr').forEach((row, index) => {
+                row.querySelector('.question-order').textContent = index + 1;
+            });
+        }
+
+        // 保存排序
+        document.getElementById('saveOrder').addEventListener('click', function() {
+            const orderData = {};
+            document.querySelectorAll('#sortableQuestions tr').forEach((row, index) => {
+                const questionId = row.getAttribute('data-question-id');
+                orderData[questionId] = index + 1;
+            });
+
+            fetch('{{ url_for("exams.reorder_questions", id=exam.id) }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': "{{ csrf_token() }}"
+                },
+                body: JSON.stringify(orderData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('题目顺序已保存');
+                } else {
+                    alert('保存失败: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('保存失败，请重试');
+            });
+        });
+
+        // 题目搜索功能
+        const searchInput = document.getElementById('searchQuestions');
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                const searchTerm = this.value.toLowerCase();
+                document.querySelectorAll('#availableQuestions .list-group-item').forEach(item => {
+                    const title = item.querySelector('h6').textContent.toLowerCase();
+                    const content = item.querySelector('p').textContent.toLowerCase();
+
+                    if (title.includes(searchTerm) || content.includes(searchTerm)) {
+                        item.style.display = '';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+            });
+        }
+    });
+</script>
+{% endblock %}
+{% endblock %}

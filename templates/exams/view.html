@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}考试详情{% endblock %}
+
+{% block content %}
+{# 在顶部获取当前时间，只调用一次 now() 函数 #}
+{% set current_time = get_now() %}
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>考试详情</h1>
+        <div>
+            <a href="{{ url_for('exams.index') }}" class="btn btn-secondary">返回列表</a>
+            {% if current_user.is_admin() or exam.creator_id == current_user.id %}
+                {# 使用存储的当前时间进行比较 #}
+                {% if current_time < exam.start_time %}
+                <a href="{{ url_for('exams.edit', id=exam.id) }}" class="btn btn-primary">编辑考试</a>
+                <a href="{{ url_for('exams.manage_questions', id=exam.id) }}" class="btn btn-info">管理题目</a>
+                {% endif %}
+            {% endif %}
+
+            {% if current_user.is_student() and exam.is_published and current_time >= exam.start_time and current_time <= exam.end_time %}
+            <a href="{{ url_for('exams.take_exam', id=exam.id) }}" class="btn btn-success">参加考试</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+                {% if exam.is_published %}
+                <span class="badge bg-success">已发布</span>
+                {% else %}
+                <span class="badge bg-warning">未发布</span>
+                {% endif %}
+
+                {# 使用存储的当前时间进行比较，而不是再次调用 now() #}
+                {% if current_time < exam.start_time %}
+                <span class="badge bg-info">未开始</span>
+                {% elif current_time > exam.end_time %}
+                <span class="badge bg-secondary">已结束</span>
+                {% else %}
+                <span class="badge bg-danger">进行中</span>
+                {% endif %}
+            </div>
+            <small class="text-muted">创建于: {{ exam.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+        </div>
+        <div class="card-body">
+            <h3 class="card-title">{{ exam.title }}</h3>
+            <div class="my-3">
+                <p>{{ exam.description|safe }}</p>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <strong>开始时间:</strong> {{ exam.start_time.strftime('%Y-%m-%d %H:%M') }}
+                </div>
+                <div class="col-md-6">
+                    <strong>结束时间:</strong> {{ exam.end_time.strftime('%Y-%m-%d %H:%M') }}
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <strong>总分值:</strong> {{ exam.total_score }}
+                </div>
+                <div class="col-md-6">
+                    <strong>题目数量:</strong> {{ exam.questions|length }}
+                </div>
+            </div>
+
+            {% if current_user.is_admin() or exam.creator_id == current_user.id %}
+            <div class="card mt-4">
+                <div class="card-header">题目列表</div>
+                <div class="card-body">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>序号</th>
+                                <th>题目类型</th>
+                                <th>题目标题</th>
+                                <th>分值</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for eq in exam.questions|sort(attribute='order') %}
+                            <tr>
+                                <td>{{ eq.order }}</td>
+                                <td>
+                                    {% if eq.question.is_choice() %}
+                                    <span class="badge bg-primary">选择题</span>
+                                    {% elif eq.question.is_fill_blank() %}
+                                    <span class="badge bg-success">填空题</span>
+                                    {% elif eq.question.is_programming() %}
+                                    <span class="badge bg-warning">编程题</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('questions.view', id=eq.question.id) }}">
+                                        {{ eq.question.title }}
+                                    </a>
+                                </td>
+                                <td>{{ eq.score }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="4" class="text-center">尚未添加题目</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

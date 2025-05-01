@@ -9,6 +9,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash
 # 第四次修改：增加了下面一行
 from flask_login import LoginManager, current_user, login_required
 from datetime import datetime
+from flask_wtf.csrf import CSRFProtect
 import os
 from models.db import db  # 导入已存在的SQLAlchemy实例，不要再创建新的
 
@@ -40,6 +41,10 @@ def create_app():
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'r_exam.db')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.secret_key = 'your_secret_key_here'  # 设置密钥用于会话安全
+
+    csrf = CSRFProtect()
+    csrf.init_app(app)
+    app.jinja_env.globals.update(get_now=lambda: datetime.utcnow())
 
     # 初始化数据库
     db.init_app(app)
@@ -96,6 +101,11 @@ def create_app():
     # 注册题库管理蓝图
     from questions import questions_bp
     app.register_blueprint(questions_bp, url_prefix='/questions')
+
+    # 第九次修改
+    # 导入并注册考试蓝图
+    from exams import exams_bp
+    app.register_blueprint(exams_bp, url_prefix='/exams')
 
     # 使用路由装饰器定义一个路由
     # '@app.route('/')' 表示这个函数处理根URL的请求
