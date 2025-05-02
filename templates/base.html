@@ -22,7 +22,7 @@
                     {% if current_user.is_authenticated %}
                         {% if current_user.is_teacher() or current_user.is_admin() %}
                         <li class="nav-item">
-                            <a class="nav-link" href="#">管理题目</a>
+                            <a class="nav-link" href="{{ url_for('questions.index') }}">管理题目</a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link" href="{{ url_for('exams.index') }}">管理考试</a>
@@ -30,7 +30,7 @@
                         {% endif %}
                         {% if current_user.is_student() %}
                         <li class="nav-item">
-                            <a class="nav-link" href="#">我的考试</a>
+                            <a class="nav-link" href="{{ url_for('exams.student_exams') }}">我的考试</a>
                         </li>
                         {% endif %}
                         {% if current_user.is_admin() %}

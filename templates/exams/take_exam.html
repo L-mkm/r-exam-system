@@ -1,0 +1,701 @@
+{% extends 'base.html' %}
+
+{% block title %}参加考试 - {{ exam.title }}{% endblock %}
+
+{% block head %}
+{{ super() }}
+<!-- 添加jQuery -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<!-- 添加CodeMirror库用于R代码编辑 -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.3/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.3/theme/monokai.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.3/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.3/mode/r/r.min.js"></script>
+<style>
+    .question-nav-item {
+        cursor: pointer;
+    }
+    .question-nav-item.active {
+        background-color: #007bff;
+        color: white;
+    }
+    .question-nav-item.answered {
+        background-color: #28a745;
+        color: white;
+    }
+    .timer-warning {
+        color: #ffc107;
+    }
+    .timer-danger {
+        color: #dc3545;
+    }
+    .CodeMirror {
+        height: auto;
+        min-height: 200px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+    #save-status {
+        font-style: italic;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-3">
+  <div id="exam-data"
+         data-exam-id="{{ exam.id }}"
+         data-score-id="{{ score_id }}"
+         data-question-ids="{{ exam_questions|map(attribute='question_id')|list|tojson }}"
+         style="display:none;">
+    </div>
+    <div class="row">
+        <!-- 左侧导航和状态 -->
+        <div class="col-md-3">
+            <div class="card mb-3">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">考试信息</h5>
+                </div>
+                <div class="card-body">
+                    <h4>{{ exam.title }}</h4>
+                    <p>{{ exam.description }}</p>
+                    <div class="d-flex justify-content-between">
+                        <span>总分值:</span>
+                        <span>{{ exam.total_score }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 计时器 -->
+            <div class="card mb-3">
+                <div class="card-header bg-warning">
+                    <h5 class="mb-0">剩余时间</h5>
+                </div>
+                <div class="card-body text-center">
+                    <h3 id="exam-timer" data-remaining="{{ remaining_seconds }}">
+                        <span id="hours">00</span>:<span id="minutes">00</span>:<span id="seconds">00</span>
+                    </h3>
+                </div>
+            </div>
+
+            <!-- 答题状态 -->
+            <div class="card mb-3">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">答题进度</h5>
+                </div>
+                <div class="card-body">
+                    <div class="progress mb-3">
+                        <div id="progress-bar" class="progress-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>已回答:</span>
+                        <span id="answered-count">0 / {{ exam_questions|length }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 题目导航 -->
+            <div class="card">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">题目导航</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush" id="question-nav">
+                        {% for eq in exam_questions %}
+                        <a class="list-group-item list-group-item-action question-nav-item"
+                           data-question-id="{{ eq.question_id }}" data-index="{{ loop.index }}">
+                            <div class="d-flex w-100 justify-content-between">
+                                <span>{{ loop.index }}. {{ eq.question.title|truncate(20) }}</span>
+                                <span class="badge badge-pill badge-primary">{{ eq.score }}分</span>
+                            </div>
+                            <small class="text-muted">{{ eq.question.question_type_display }}</small>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- 提交按钮 -->
+            <div class="mt-3">
+                <button id="submit-exam" class="btn btn-danger btn-block" data-toggle="modal" data-target="#submitConfirmModal">
+                    提交考试
+                </button>
+            </div>
+        </div>
+
+        <!-- 右侧题目内容 -->
+        <div class="col-md-9">
+            <div class="card">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">当前题目: <span id="current-question-title"></span></h5>
+                    <div>
+                        <span id="save-status" class="text-white mr-2"></span>
+                        <button id="save-answer" class="btn btn-sm btn-light">保存答案</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="question-content-container">
+                        <div class="text-center p-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="sr-only">加载中...</span>
+                            </div>
+                            <p class="mt-3">请从左侧选择题目开始答题</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer d-flex justify-content-between">
+                    <button id="prev-question" class="btn btn-secondary">上一题</button>
+                    <button id="next-question" class="btn btn-primary">下一题</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 提交确认模态框 -->
+<div class="modal fade" id="submitConfirmModal" tabindex="-1" role="dialog" aria-labelledby="submitConfirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="submitConfirmModalLabel">确认提交</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>您确定要提交考试吗？提交后将无法再修改答案。</p>
+                <div id="unanswered-warning" class="alert alert-warning d-none">
+                    <strong>警告:</strong> 您还有题目未作答，确定要提交吗？
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">取消</button>
+                <form action="{{ url_for('exams.submit_exam', exam_id=exam.id) }}" method="post">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-danger">确认提交</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 自动保存提示模态框 -->
+<div class="modal fade" id="autoSaveModal" tabindex="-1" role="dialog" aria-labelledby="autoSaveModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-sm" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="autoSaveModalLabel">自动保存</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body text-center">
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="sr-only">保存中...</span>
+                </div>
+                <p>正在自动保存您的答案，请稍候...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 时间到提示模态框 -->
+<div class="modal fade" id="timeUpModal" tabindex="-1" role="dialog" aria-labelledby="timeUpModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="timeUpModalLabel">考试时间结束</h5>
+            </div>
+            <div class="modal-body">
+                <p>考试时间已结束，系统将自动提交您的答案。</p>
+                <div class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="sr-only">提交中...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    // 全局变量
+    let currentQuestionId = null;
+    let scoreId = null;
+    let examId = null;
+    let questionIds = [];
+    let currentIndex = 0;
+    let codeMirrorEditor = null;
+    let questionStatus = {};
+    let autoSaveTimer = null;
+    let lastSaveTime = null;
+
+    // 页面加载完成后执行
+    $(document).ready(function() {
+        // 从数据容器读取数据
+        // const examData = document.getElementById('exam-data');
+        examId = examData.dataset.examId;
+        scoreId = examData.dataset.scoreId;
+        questionIds = JSON.parse(examData.dataset.questionIds);
+
+        // 初始化计时器
+        initTimer();
+
+        // 加载答题状态
+        updateAnswerStatus();
+
+        // 每30秒更新一次答题状态
+        setInterval(updateAnswerStatus, 30000);
+
+        // 绑定题目导航事件
+        $('.question-nav-item').on('click', function() {
+            const questionId = $(this).data('question-id');
+            const index = $(this).data('index') - 1;  // 转为0基索引
+            loadQuestion(questionId, index);
+        });
+
+        // 上一题/下一题按钮事件
+        $('#prev-question').on('click', function() {
+            navigateQuestion(-1);
+        });
+
+        $('#next-question').on('click', function() {
+            navigateQuestion(1);
+        });
+
+        // 保存答案按钮事件
+        $('#save-answer').on('click', function() {
+            saveCurrentAnswer();
+        });
+
+        // 提交考试前检查
+        $('#submit-exam').on('click', function() {
+            checkBeforeSubmit();
+        });
+
+        // 默认加载第一题
+        if (questionIds.length > 0) {
+            loadQuestion(questionIds[0], 0);
+        }
+
+        // 启用窗口关闭提醒
+        window.addEventListener('beforeunload', function(e) {
+            const confirmationMessage = '离开页面将导致未保存的答案丢失，确定要离开吗？';
+            e.returnValue = confirmationMessage;
+            return confirmationMessage;
+        });
+    });
+
+    // 初始化计时器
+    function initTimer() {
+        const remainingSeconds = parseInt($('#exam-timer').data('remaining'));
+        let countdown = remainingSeconds;
+
+        function updateTimer() {
+            if (countdown <= 0) {
+                clearInterval(timerInterval);
+                timeUp();
+                return;
+            }
+
+            const hours = Math.floor(countdown / 3600);
+            const minutes = Math.floor((countdown % 3600) / 60);
+            const seconds = countdown % 60;
+
+            $('#hours').text(hours.toString().padStart(2, '0'));
+            $('#minutes').text(minutes.toString().padStart(2, '0'));
+            $('#seconds').text(seconds.toString().padStart(2, '0'));
+
+            // 时间小于15分钟，显示警告颜色
+            if (countdown < 900) {
+                $('#exam-timer').addClass('timer-warning');
+            }
+
+            // 时间小于5分钟，显示危险颜色
+            if (countdown < 300) {
+                $('#exam-timer').removeClass('timer-warning').addClass('timer-danger');
+            }
+
+            countdown--;
+        }
+
+        // 立即更新一次
+        updateTimer();
+
+        // 每秒更新一次
+        const timerInterval = setInterval(updateTimer, 1000);
+    }
+
+    // 时间到处理函数
+    function timeUp() {
+        // 保存当前答案
+        saveCurrentAnswer(true);
+
+        // 显示时间到模态框
+        $('#timeUpModal').modal('show');
+
+        // 3秒后自动提交
+        setTimeout(function() {
+            $('form[action*="submit_exam"]').submit();
+        }, 3000);
+    }
+
+    // 加载题目
+    function loadQuestion(questionId, index) {
+        // 保存当前答案
+        if (currentQuestionId) {
+            saveCurrentAnswer();
+        }
+
+        currentQuestionId = questionId;
+        currentIndex = index;
+
+        // 更新导航项激活状态
+        $('.question-nav-item').removeClass('active');
+        $(`.question-nav-item[data-question-id="${questionId}"]`).addClass('active');
+
+        // 显示加载状态
+        $('#question-content-container').html(`
+            <div class="text-center p-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="sr-only">加载中...</span>
+                </div>
+                <p class="mt-3">正在加载题目...</p>
+            </div>
+        `);
+
+        // 发送AJAX请求获取题目详情
+        $.getJSON(`/student/get_question/${examId}/${questionId}`, function(data) {
+            // 设置题目标题
+            $('#current-question-title').text(data.title);
+
+            // 根据题目类型生成不同的内容
+            let content = `
+                <div class="question-header mb-4">
+                    <h4>${data.title}</h4>
+                    <div class="d-flex justify-content-between">
+                        <span class="badge badge-primary">题型: ${getQuestionTypeName(data.question_type)}</span>
+                        <span class="badge badge-info">分值: ${data.score}分</span>
+                    </div>
+                </div>
+                <div class="question-content mb-4">
+                    ${data.content}
+                </div>
+                <div class="answer-container">
+            `;
+
+            // 根据不同题型生成答题区域
+            if (data.question_type === 'choice') {
+                content += generateChoiceQuestionAnswer(data);
+            } else if (data.question_type === 'fill_blank') {
+                content += generateFillBlankQuestionAnswer(data);
+            } else if (data.question_type === 'programming') {
+                content += generateProgrammingQuestionAnswer(data);
+            }
+
+            content += `</div>`;
+
+            // 更新题目内容
+            $('#question-content-container').html(content);
+
+            // 初始化代码编辑器（如果是编程题）
+            if (data.question_type === 'programming') {
+                initCodeEditor(data.saved_answer || data.answer_template || '');
+            }
+
+            // 如果有保存的答案，加载答案
+            if (data.saved_answer) {
+                loadSavedAnswer(data);
+            }
+
+            // 清除上一次的自动保存计时器
+            if (autoSaveTimer) {
+                clearTimeout(autoSaveTimer);
+            }
+
+            // 设置自动保存计时器（30秒自动保存一次）
+            autoSaveTimer = setTimeout(function autoSave() {
+                saveCurrentAnswer();
+                autoSaveTimer = setTimeout(autoSave, 30000);
+            }, 30000);
+        })
+        .fail(function() {
+            $('#question-content-container').html(`
+                <div class="alert alert-danger">
+                    <strong>错误:</strong> 加载题目失败，请刷新页面重试。
+                </div>
+            `);
+        });
+    }
+
+    // 生成选择题答题区域
+    function generateChoiceQuestionAnswer(question) {
+        let savedOptions = [];
+        try {
+            savedOptions = question.saved_answer ? JSON.parse(question.saved_answer) : [];
+        } catch (e) {
+            savedOptions = [];
+        }
+
+        let content = `
+            <div class="form-group">
+                <label class="font-weight-bold">请选择答案:</label>
+                <div class="options-container">
+        `;
+
+        for (const option of question.options) {
+            const checked = savedOptions.includes(option.id) ? 'checked' : '';
+            content += `
+                <div class="custom-control custom-checkbox mb-2">
+                    <input type="checkbox" class="custom-control-input choice-option"
+                           id="option-${option.id}" value="${option.id}" ${checked}>
+                    <label class="custom-control-label" for="option-${option.id}">
+                        ${option.content}
+                    </label>
+                </div>
+            `;
+        }
+
+        content += `
+                </div>
+            </div>
+        `;
+
+        return content;
+    }
+
+    // 生成填空题答题区域
+    function generateFillBlankQuestionAnswer(question) {
+        return `
+            <div class="form-group">
+                <label class="font-weight-bold">请输入答案:</label>
+                <textarea id="fill-blank-answer" class="form-control" rows="5">${question.saved_answer || ''}</textarea>
+            </div>
+        `;
+    }
+
+    // 生成编程题答题区域
+    function generateProgrammingQuestionAnswer(question) {
+        return `
+            <div class="form-group">
+                <label class="font-weight-bold">请编写R代码:</label>
+                <div class="mb-2">
+                    <small class="text-muted">提示: 使用Tab键缩进, Shift+Enter换行</small>
+                </div>
+                <textarea id="code-editor">${question.saved_answer || question.answer_template || ''}</textarea>
+            </div>
+        `;
+    }
+
+    // 初始化代码编辑器
+    function initCodeEditor(initialValue) {
+        const textarea = document.getElementById('code-editor');
+
+        codeMirrorEditor = CodeMirror.fromTextArea(textarea, {
+            mode: 'r',
+            theme: 'monokai',
+            lineNumbers: true,
+            indentUnit: 4,
+            smartIndent: true,
+            indentWithTabs: true,
+            lineWrapping: true,
+            matchBrackets: true,
+            autoCloseBrackets: true,
+            extraKeys: {
+                "Tab": function(cm) {
+                    if (cm.somethingSelected()) {
+                        cm.indentSelection("add");
+                    } else {
+                        cm.replaceSelection("    ", "end", "+input");
+                    }
+                },
+                "Shift-Enter": function(cm) {
+                    cm.replaceSelection("\n", "end", "+input");
+                }
+            }
+        });
+
+        codeMirrorEditor.setValue(initialValue);
+    }
+
+    // 加载已保存的答案
+    function loadSavedAnswer(question) {
+        if (!question.saved_answer) return;
+
+        try {
+            if (question.question_type === 'choice') {
+                const savedOptions = JSON.parse(question.saved_answer);
+                savedOptions.forEach(optionId => {
+                    $(`#option-${optionId}`).prop('checked', true);
+                });
+            } else if (question.question_type === 'fill_blank') {
+                $('#fill-blank-answer').val(question.saved_answer);
+            } else if (question.question_type === 'programming') {
+                if (codeMirrorEditor) {
+                    codeMirrorEditor.setValue(question.saved_answer);
+                }
+            }
+        } catch (e) {
+            console.error('加载已保存答案失败:', e);
+        }
+    }
+
+    // 保存当前答案
+    function saveCurrentAnswer(silent = false) {
+        if (!currentQuestionId) return;
+
+        let answerContent = '';
+
+        // 根据题目类型获取答案内容
+        const questionType = $('.question-nav-item.active').find('small').text().trim();
+
+        if (questionType.includes('选择题')) {
+            // 选择题：收集选中的选项ID
+            const selectedOptions = [];
+            $('.choice-option:checked').each(function() {
+                selectedOptions.push($(this).val());
+            });
+            answerContent = JSON.stringify(selectedOptions);
+        } else if (questionType.includes('填空题')) {
+            // 填空题：获取文本
+            answerContent = $('#fill-blank-answer').val();
+        } else if (questionType.includes('编程题')) {
+            // 编程题：获取代码编辑器内容
+            if (codeMirrorEditor) {
+                answerContent = codeMirrorEditor.getValue();
+            }
+        }
+
+        // 如果未静默模式，显示自动保存模态框
+        if (!silent) {
+            $('#autoSaveModal').modal('show');
+        }
+
+        // 发送AJAX请求保存答案
+        $.ajax({
+            url: '/student/save_answer',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                score_id: scoreId,
+                question_id: currentQuestionId,
+                answer_content: answerContent
+            }),
+            success: function(response) {
+                if (response.success) {
+                    lastSaveTime = response.saved_at;
+                    $('#save-status').text(`上次保存: ${lastSaveTime}`).show();
+
+                    // 更新答题状态
+                    questionStatus[currentQuestionId] = true;
+                    updateProgressBar();
+
+                    // 将当前题目导航项标记为已回答
+                    $(`.question-nav-item[data-question-id="${currentQuestionId}"]`).addClass('answered');
+                }
+
+                // 如果未静默模式，隐藏自动保存模态框
+                if (!silent) {
+                    setTimeout(function() {
+                        $('#autoSaveModal').modal('hide');
+                    }, 500);
+                }
+            },
+            error: function() {
+                $('#save-status').text('保存失败，请重试').show();
+
+                // 如果未静默模式，隐藏自动保存模态框
+                if (!silent) {
+                    setTimeout(function() {
+                        $('#autoSaveModal').modal('hide');
+                    }, 500);
+                }
+            }
+        });
+    }
+
+    // 更新答题状态
+    function updateAnswerStatus() {
+        $.getJSON(`/student/get_answer_status/${examId}`, function(data) {
+            questionStatus = data.question_status;
+            $('#answered-count').text(`${data.answered_count} / ${data.total_count}`);
+
+            // 更新进度条
+            const progressPercent = Math.round((data.answered_count / data.total_count) * 100);
+            $('#progress-bar').css('width', `${progressPercent}%`).attr('aria-valuenow', progressPercent).text(`${progressPercent}%`);
+
+            // 更新导航项状态
+            for (const qId in questionStatus) {
+                if (questionStatus[qId]) {
+                    $(`.question-nav-item[data-question-id="${qId}"]`).addClass('answered');
+                }
+            }
+        });
+    }
+
+    // 更新进度条
+    function updateProgressBar() {
+        // 计算已回答题目数
+        let answeredCount = 0;
+        for (const qId in questionStatus) {
+            if (questionStatus[qId]) {
+                answeredCount++;
+            }
+        }
+
+        const totalCount = questionIds.length;
+        $('#answered-count').text(`${answeredCount} / ${totalCount}`);
+
+        // 更新进度条
+        const progressPercent = Math.round((answeredCount / totalCount) * 100);
+        $('#progress-bar').css('width', `${progressPercent}%`).attr('aria-valuenow', progressPercent).text(`${progressPercent}%`);
+    }
+
+    // 导航到前一题或后一题
+    function navigateQuestion(direction) {
+        const newIndex = currentIndex + direction;
+
+        // 检查是否越界
+        if (newIndex < 0 || newIndex >= questionIds.length) {
+            return;
+        }
+
+        loadQuestion(questionIds[newIndex], newIndex);
+    }
+
+    // 检查提交前的状态
+    function checkBeforeSubmit() {
+        // 计算未回答题目数
+        let unansweredCount = 0;
+        for (const qId of questionIds) {
+            if (!questionStatus[qId]) {
+                unansweredCount++;
+            }
+        }
+
+        // 如果有未回答题目，显示警告
+        if (unansweredCount > 0) {
+            $('#unanswered-warning').removeClass('d-none').text(`警告: 您还有 ${unansweredCount} 道题目未作答，确定要提交吗？`);
+        } else {
+            $('#unanswered-warning').addClass('d-none');
+        }
+    }
+
+    // 获取题目类型名称
+    function getQuestionTypeName(type) {
+        switch (type) {
+            case 'choice':
+                return '选择题';
+            case 'fill_blank':
+                return '填空题';
+            case 'programming':
+                return '编程题';
+            default:
+                return '未知类型';
+        }
+    }
+</script>
+{% endblock %}

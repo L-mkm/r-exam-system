@@ -12,6 +12,7 @@ from datetime import datetime
 from flask_wtf.csrf import CSRFProtect
 import os
 from models.db import db  # 导入已存在的SQLAlchemy实例，不要再创建新的
+import json
 
 
 # 第三次修改：创建数据库实例
@@ -45,6 +46,20 @@ def create_app():
     csrf = CSRFProtect()
     csrf.init_app(app)
     app.jinja_env.globals.update(get_now=lambda: datetime.utcnow())
+
+    # 自定义map过滤器
+    def map_attribute(seq, attr=None, attribute=None):
+        """映射序列中对象的属性到列表"""
+        # 使用attribute关键字参数如果提供了的话
+        attr_name = attribute if attribute is not None else attr
+        return [getattr(item, attr_name) for item in seq]
+
+    app.jinja_env.filters['map'] = map_attribute
+
+    # 添加tojson过滤器
+    import json
+    if 'tojson' not in app.jinja_env.filters:
+        app.jinja_env.filters['tojson'] = lambda v: json.dumps(v)
 
     # 初始化数据库
     db.init_app(app)
@@ -106,6 +121,20 @@ def create_app():
     # 导入并注册考试蓝图
     from exams import exams_bp
     app.register_blueprint(exams_bp, url_prefix='/exams')
+
+    # 第十次修改
+    # 导入学生考试路由
+    import exams.student_routes
+
+    # 添加自定义过滤器，用于在模板中解析JSON
+    @app.template_filter('json_decode')
+    def json_decode(text):
+        """将JSON字符串解码为Python对象"""
+        try:
+            import json
+            return json.loads(text)
+        except:
+            return []
 
     # 使用路由装饰器定义一个路由
     # '@app.route('/')' 表示这个函数处理根URL的请求

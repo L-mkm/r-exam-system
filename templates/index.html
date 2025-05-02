@@ -98,7 +98,7 @@
                 <a href="/form">尝试简单的R代码测试</a>
                 <!-- 第四次修改，增加了： -->
                 {% if current_user.is_student() %}
-                    <a href="#">查看可参加的考试</a>
+                    <a href="{{ url_for('exams.student_exams') }}">查看可参加的考试</a>
                 {% endif %}
 
                 {% if current_user.is_teacher() or current_user.is_admin() %}

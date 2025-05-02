@@ -5,6 +5,19 @@
 {% block content %}
 {% set current_time = get_now() %}
 <div class="container mt-4">
+    <!-- 第十次修改：添加学生考试中心入口 -->
+    {% if current_user.is_authenticated and current_user.is_student() %}
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">学生考试中心</h5>
+        </div>
+        <div class="card-body">
+            <p>在这里您可以查看所有可参加的考试、即将开始的考试以及您的考试历史记录。</p>
+            <a href="{{ url_for('exams.student_exams') }}" class="btn btn-primary">进入考试中心</a>
+        </div>
+    </div>
+    {% endif %}
+
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1>考试管理</h1>
         {% if current_user.is_admin() or current_user.is_teacher() %}

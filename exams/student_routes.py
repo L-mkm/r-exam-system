@@ -1,0 +1,480 @@
+from flask import render_template, request, redirect, url_for, flash, jsonify, current_app
+from flask_login import current_user, login_required
+from sqlalchemy import and_
+from exams import exams_bp
+from models.db import db
+from models.exam import Exam
+from models.exam_question import ExamQuestion
+from models.question import Question
+from models.score import Score
+from models.student_answer import StudentAnswer
+from models.question_option import QuestionOption
+from forms.student_answer import StudentAnswerForm
+from datetime import datetime, timedelta
+import json
+import r_setup
+
+
+@exams_bp.route('/student/exams')
+@login_required
+def student_exams():
+    """学生可参加的考试列表"""
+    if not current_user.is_student():
+        flash('只有学生可以访问此页面', 'danger')
+        return redirect(url_for('index'))
+
+    # 获取当前时间
+    now = datetime.utcnow()
+
+    # 查询可参加的考试（已发布且在时间范围内）
+    available_exams = Exam.query.filter(
+        Exam.is_published == True,
+        Exam.start_time <= now,
+        Exam.end_time >= now
+    ).order_by(Exam.start_time).all()
+
+    # 查询即将开始的考试
+    upcoming_exams = Exam.query.filter(
+        Exam.is_published == True,
+        Exam.start_time > now
+    ).order_by(Exam.start_time).all()
+
+    # 查询已结束的考试
+    completed_exams = Exam.query.filter(
+        Exam.is_published == True,
+        Exam.end_time < now
+    ).join(Score, and_(
+        Score.exam_id == Exam.id,
+        Score.student_id == current_user.id
+    )).order_by(Exam.end_time.desc()).all()
+
+    return render_template('exams/student_exams.html',
+                           available_exams=available_exams,
+                           upcoming_exams=upcoming_exams,
+                           completed_exams=completed_exams,
+                           current_time=now)
+
+
+@exams_bp.route('/student/take_exam/<int:exam_id>')
+@login_required
+def take_exam(exam_id):
+    """参加考试页面"""
+    if not current_user.is_student():
+        flash('只有学生可以参加考试', 'danger')
+        return redirect(url_for('exams.student_exams'))
+
+    # 获取考试信息
+    exam = Exam.query.get_or_404(exam_id)
+
+    # 检查考试是否已发布
+    if not exam.is_published:
+        flash('该考试尚未发布', 'danger')
+        return redirect(url_for('exams.student_exams'))
+
+    # 获取当前时间
+    now = datetime.utcnow()
+
+    # 检查考试时间
+    if now < exam.start_time:
+        flash('考试尚未开始', 'warning')
+        return redirect(url_for('exams.student_exams'))
+
+    if now > exam.end_time:
+        flash('考试已结束', 'warning')
+        return redirect(url_for('exams.student_exams'))
+
+    # 检查是否已存在考试记录
+    existing_score = Score.query.filter_by(
+        student_id=current_user.id,
+        exam_id=exam_id
+    ).first()
+
+    # 如果没有考试记录，创建一个
+    if not existing_score:
+        new_score = Score(
+            student_id=current_user.id,
+            exam_id=exam_id,
+            is_graded=False
+        )
+        db.session.add(new_score)
+        db.session.commit()
+        score_id = new_score.id
+    else:
+        # 如果已提交，则不能再次参加
+        if existing_score.is_graded:
+            flash('您已完成此考试', 'info')
+            return redirect(url_for('exams.view_result', exam_id=exam_id))
+        score_id = existing_score.id
+
+    # 获取考试题目
+    exam_questions = ExamQuestion.query.filter_by(exam_id=exam_id).order_by(ExamQuestion.order).all()
+
+    # 计算剩余时间（秒）
+    remaining_seconds = int((exam.end_time - now).total_seconds())
+
+    # 创建学生答题表单
+    answer_form = StudentAnswerForm()
+
+    return render_template('exams/take_exam.html',
+                           exam=exam,
+                           exam_questions=exam_questions,
+                           score_id=score_id,
+                           remaining_seconds=remaining_seconds,
+                           answer_form=answer_form)
+
+
+@exams_bp.route('/student/get_question/<int:exam_id>/<int:question_id>')
+@login_required
+def get_question(exam_id, question_id):
+    """获取题目详情"""
+    if not current_user.is_student():
+        return jsonify({'error': '权限不足'}), 403
+
+    # 获取考试信息
+    exam = Exam.query.get_or_404(exam_id)
+
+    # 获取题目信息
+    question = Question.query.get_or_404(question_id)
+
+    # 获取考试题目关联信息
+    exam_question = ExamQuestion.query.filter_by(
+        exam_id=exam_id,
+        question_id=question_id
+    ).first_or_404()
+
+    # 获取学生得分记录
+    score = Score.query.filter_by(
+        student_id=current_user.id,
+        exam_id=exam_id
+    ).first()
+
+    if not score:
+        return jsonify({'error': '考试记录不存在'}), 404
+
+    # 获取学生已保存的答案
+    student_answer = StudentAnswer.query.filter_by(
+        score_id=score.id,
+        question_id=question_id
+    ).first()
+
+    # 准备题目数据
+    question_data = {
+        'id': question.id,
+        'title': question.title,
+        'content': question.content,
+        'question_type': question.question_type,
+        'score': exam_question.score,
+        'answer_template': question.answer_template,
+        'saved_answer': student_answer.answer_content if student_answer else '',
+    }
+
+    # 如果是选择题，添加选项
+    if question.is_choice():
+        options = []
+        for option in question.options:
+            options.append({
+                'id': option.id,
+                'content': option.content,
+            })
+        question_data['options'] = options
+
+    return jsonify(question_data)
+
+
+@exams_bp.route('/student/save_answer', methods=['POST'])
+@login_required
+def save_answer():
+    """保存学生答案（AJAX）"""
+    if not current_user.is_student():
+        return jsonify({'success': False, 'message': '权限不足'}), 403
+
+    data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'message': '无效请求'}), 400
+
+    score_id = data.get('score_id')
+    question_id = data.get('question_id')
+    answer_content = data.get('answer_content')
+
+    if not all([score_id, question_id]):
+        return jsonify({'success': False, 'message': '参数不完整'}), 400
+
+    # 检查得分记录是否存在且属于当前用户
+    score = Score.query.get_or_404(score_id)
+    if score.student_id != current_user.id:
+        return jsonify({'success': False, 'message': '权限不足'}), 403
+
+    # 检查考试是否在进行中
+    exam = Exam.query.get_or_404(score.exam_id)
+    now = datetime.utcnow()
+    if now > exam.end_time or now < exam.start_time:
+        return jsonify({'success': False, 'message': '考试时间已过或未开始'}), 403
+
+    # 查找已存在的答案记录
+    existing_answer = StudentAnswer.query.filter_by(
+        score_id=score_id,
+        question_id=question_id
+    ).first()
+
+    if existing_answer:
+        # 更新现有答案
+        existing_answer.answer_content = answer_content
+        existing_answer.submitted_at = datetime.utcnow()
+    else:
+        # 创建新答案记录
+        new_answer = StudentAnswer(
+            score_id=score_id,
+            question_id=question_id,
+            answer_content=answer_content,
+            points_earned=0  # 初始分数为0
+        )
+        db.session.add(new_answer)
+
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'message': '答案已保存',
+        'saved_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+    })
+
+
+@exams_bp.route('/student/submit_exam/<int:exam_id>', methods=['POST'])
+@login_required
+def submit_exam(exam_id):
+    """提交考试"""
+    if not current_user.is_student():
+        flash('只有学生可以参加考试', 'danger')
+        return redirect(url_for('exams.student_exams'))
+
+    # 获取考试信息
+    exam = Exam.query.get_or_404(exam_id)
+
+    # 获取学生得分记录
+    score = Score.query.filter_by(
+        student_id=current_user.id,
+        exam_id=exam_id
+    ).first_or_404()
+
+    # 标记为已提交
+    score.is_graded = False  # 等待教师评分
+    score.submit_time = datetime.utcnow()
+
+    # 自动评分选择题
+    auto_grade_choice_questions(score)
+
+    # 运行R代码评分（编程题）
+    auto_grade_programming_questions(score)
+
+    db.session.commit()
+
+    flash('考试已提交，谢谢参与！', 'success')
+    return redirect(url_for('exams.view_result', exam_id=exam_id))
+
+
+@exams_bp.route('/student/view_result/<int:exam_id>')
+@login_required
+def view_result(exam_id):
+    """查看考试结果"""
+    if not current_user.is_student():
+        flash('只有学生可以查看考试结果', 'danger')
+        return redirect(url_for('index'))
+
+    # 获取考试信息
+    exam = Exam.query.get_or_404(exam_id)
+
+    # 获取学生得分记录
+    score = Score.query.filter_by(
+        student_id=current_user.id,
+        exam_id=exam_id
+    ).first_or_404()
+
+    # 获取所有答题记录
+    student_answers = StudentAnswer.query.filter_by(score_id=score.id).all()
+
+    # 获取考试题目
+    exam_questions = ExamQuestion.query.filter_by(exam_id=exam_id).order_by(ExamQuestion.order).all()
+
+    # 创建题目和答案的映射
+    question_answers = {}
+    for eq in exam_questions:
+        question = eq.question
+        answer = next((a for a in student_answers if a.question_id == question.id), None)
+        question_answers[question.id] = {
+            'question': question,
+            'exam_question': eq,
+            'answer': answer
+        }
+
+    return render_template('exams/view_result.html',
+                           exam=exam,
+                           score=score,
+                           question_answers=question_answers)
+
+
+@exams_bp.route('/student/check_time/<int:exam_id>')
+@login_required
+def check_time(exam_id):
+    """检查考试剩余时间（AJAX）"""
+    if not current_user.is_student():
+        return jsonify({'error': '权限不足'}), 403
+
+    # 获取考试信息
+    exam = Exam.query.get_or_404(exam_id)
+
+    # 获取当前时间
+    now = datetime.utcnow()
+
+    # 计算剩余时间
+    if now > exam.end_time:
+        remaining_seconds = 0
+        status = 'ended'
+    elif now < exam.start_time:
+        remaining_seconds = int((exam.start_time - now).total_seconds())
+        status = 'not_started'
+    else:
+        remaining_seconds = int((exam.end_time - now).total_seconds())
+        status = 'in_progress'
+
+    return jsonify({
+        'remaining_seconds': remaining_seconds,
+        'status': status
+    })
+
+
+@exams_bp.route('/student/get_answer_status/<int:exam_id>')
+@login_required
+def get_answer_status(exam_id):
+    """获取答题状态（AJAX）"""
+    if not current_user.is_student():
+        return jsonify({'error': '权限不足'}), 403
+
+    # 获取考试信息
+    exam = Exam.query.get_or_404(exam_id)
+
+    # 获取学生得分记录
+    score = Score.query.filter_by(
+        student_id=current_user.id,
+        exam_id=exam_id
+    ).first_or_404()
+
+    # 获取考试所有题目
+    exam_questions = ExamQuestion.query.filter_by(exam_id=exam_id).all()
+
+    # 获取已回答的题目
+    answered_questions = StudentAnswer.query.filter_by(score_id=score.id).all()
+
+    # 统计已回答题目数
+    answered_count = len(answered_questions)
+    total_count = len(exam_questions)
+
+    # 创建题目回答状态
+    question_status = {}
+    for eq in exam_questions:
+        is_answered = any(a.question_id == eq.question_id for a in answered_questions)
+        question_status[eq.question_id] = is_answered
+
+    return jsonify({
+        'answered_count': answered_count,
+        'total_count': total_count,
+        'question_status': question_status
+    })
+
+
+def auto_grade_choice_questions(score):
+    """自动评分选择题"""
+    # 获取所有选择题答案
+    student_answers = StudentAnswer.query.join(
+        Question, StudentAnswer.question_id == Question.id
+    ).filter(
+        StudentAnswer.score_id == score.id,
+        Question.question_type == 'choice'
+    ).all()
+
+    total_points = 0
+
+    for answer in student_answers:
+        question = Question.query.get(answer.question_id)
+        exam_question = ExamQuestion.query.filter_by(
+            exam_id=score.exam_id,
+            question_id=question.id
+        ).first()
+
+        if not exam_question:
+            continue
+
+        # 获取题目分值
+        question_score = exam_question.score
+
+        # 解析学生答案（选项ID列表）
+        try:
+            selected_options = json.loads(answer.answer_content)
+        except:
+            selected_options = []
+
+        # 获取正确选项
+        correct_options = [opt.id for opt in question.correct_options]
+
+        # 如果答案完全一致，得满分
+        if set(selected_options) == set(correct_options):
+            answer.points_earned = question_score
+        else:
+            answer.points_earned = 0
+
+        total_points += answer.points_earned
+
+    # 更新总分
+    score.total_score = total_points
+
+
+def auto_grade_programming_questions(score):
+    """自动评分编程题（R语言）"""
+    # 获取所有编程题答案
+    student_answers = StudentAnswer.query.join(
+        Question, StudentAnswer.question_id == Question.id
+    ).filter(
+        StudentAnswer.score_id == score.id,
+        Question.question_type == 'programming'
+    ).all()
+
+    for answer in student_answers:
+        question = Question.query.get(answer.question_id)
+        exam_question = ExamQuestion.query.filter_by(
+            exam_id=score.exam_id,
+            question_id=question.id
+        ).first()
+
+        if not exam_question or not question.test_code:
+            continue
+
+        # 获取题目分值
+        question_score = exam_question.score
+
+        # 运行R测试代码
+        student_code = answer.answer_content or ""
+        test_code = question.test_code
+
+        try:
+            # 使用R运行测试
+            result = r_setup.run_r_test(student_code, test_code)
+
+            # 计算得分
+            if result['status'] == 'success':
+                answer.points_earned = float(result['score'])
+                answer.feedback = result['message']
+            else:
+                answer.points_earned = 0
+                answer.feedback = result['message']
+        except Exception as e:
+            answer.points_earned = 0
+            answer.feedback = f"评分过程出错: {str(e)}"
+
+    # 重新计算总分
+    db.session.commit()
+
+    # 计算总得分
+    total_points = db.session.query(db.func.sum(StudentAnswer.points_earned)).filter(
+        StudentAnswer.score_id == score.id
+    ).scalar() or 0
+
+    score.total_score = total_points

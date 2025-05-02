@@ -1,0 +1,248 @@
+{% extends 'base.html' %}
+
+{% block title %}考试结果 - {{ exam.title }}{% endblock %}
+
+{% block head %}
+{{ super() }}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.3/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.3/theme/monokai.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.3/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.3/mode/r/r.min.js"></script>
+<style>
+    .CodeMirror {
+        height: auto;
+        min-height: 150px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+    .question-card {
+        margin-bottom: 20px;
+    }
+    .correct-answer {
+        background-color: #d4edda;
+        border-color: #c3e6cb;
+    }
+    .incorrect-answer {
+        background-color: #f8d7da;
+        border-color: #f5c6cb;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <!-- 左侧结果摘要 -->
+        <div class="col-md-3">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">考试结果</h5>
+                </div>
+                <div class="card-body">
+                    <h4>{{ exam.title }}</h4>
+                    <p>{{ exam.description }}</p>
+                    <hr>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>总分值:</span>
+                        <span>{{ exam.total_score }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>您的得分:</span>
+                        <span>{{ score.total_score }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>得分率:</span>
+                        <span>{{ (score.total_score / exam.total_score * 100)|round(2) }}%</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>提交时间:</span>
+                        <span>{{ score.submit_time.strftime('%Y-%m-%d %H:%M') }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>评分状态:</span>
+                        <span>{% if score.is_graded %}已评分{% else %}评分中{% endif %}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 题目导航 -->
+            <div class="card">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">题目导航</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        {% for question_id, qa in question_answers.items() %}
+                        <a href="#question-{{ question_id }}" class="list-group-item list-group-item-action">
+                            <div class="d-flex w-100 justify-content-between">
+                                <span>{{ loop.index }}. {{ qa.question.title|truncate(20) }}</span>
+                                <span class="badge badge-pill
+                                    {% if qa.answer and qa.answer.points_earned == qa.exam_question.score %}badge-success
+                                    {% elif qa.answer and qa.answer.points_earned > 0 %}badge-warning
+                                    {% else %}badge-danger{% endif %}">
+                                    {% if qa.answer %}{{ qa.answer.points_earned }}{% else %}0{% endif %}/{{ qa.exam_question.score }}
+                                </span>
+                            </div>
+                            <small class="text-muted">{{ qa.question.question_type }}</small>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- 返回按钮 -->
+            <div class="mt-3">
+                <a href="{{ url_for('exams.student_exams') }}" class="btn btn-secondary btn-block">返回考试列表</a>
+            </div>
+        </div>
+
+        <!-- 右侧题目详情 -->
+        <div class="col-md-9">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">题目详情和得分</h5>
+                </div>
+                <div class="card-body">
+                    {% for question_id, qa in question_answers.items() %}
+                    <div id="question-{{ question_id }}" class="question-card">
+                        <div class="card
+                            {% if qa.answer and qa.answer.points_earned == qa.exam_question.score %}correct-answer
+                            {% elif qa.answer and qa.answer.points_earned > 0 %}
+                            {% else %}incorrect-answer{% endif %}">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">{{ loop.index }}. {{ qa.question.title }}</h5>
+                                <span class="badge badge-pill
+                                    {% if qa.answer and qa.answer.points_earned == qa.exam_question.score %}badge-success
+                                    {% elif qa.answer and qa.answer.points_earned > 0 %}badge-warning
+                                    {% else %}badge-danger{% endif %}">
+                                    得分: {% if qa.answer %}{{ qa.answer.points_earned }}{% else %}0{% endif %}/{{ qa.exam_question.score }}
+                                </span>
+                            </div>
+                            <div class="card-body">
+                                <!-- 题目内容 -->
+                                <div class="question-content mb-3">
+                                    {{ qa.question.content|safe }}
+                                </div>
+
+                                <!-- 题目类型 -->
+                                <div class="mb-3">
+                                    <span class="badge badge-info">{{ qa.question.question_type }}</span>
+                                </div>
+
+                                <!-- 学生答案 -->
+                                <div class="student-answer mb-3">
+                                    <h6 class="font-weight-bold">您的答案:</h6>
+                                    {% if qa.question.question_type == 'choice' %}
+                                        {% if qa.answer %}
+                                            {% set student_options = qa.answer.answer_content|safe|json_decode %}
+                                            <ul>
+                                                {% for option in qa.question.options %}
+                                                    {% if option.id|string in student_options %}
+                                                        <li>{{ option.content }}</li>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </ul>
+                                        {% else %}
+                                            <p class="text-muted">未作答</p>
+                                        {% endif %}
+                                    {% elif qa.question.question_type == 'fill_blank' %}
+                                        {% if qa.answer and qa.answer.answer_content %}
+                                            <pre>{{ qa.answer.answer_content }}</pre>
+                                        {% else %}
+                                            <p class="text-muted">未作答</p>
+                                        {% endif %}
+                                    {% elif qa.question.question_type == 'programming' %}
+                                        {% if qa.answer and qa.answer.answer_content %}
+                                            <div class="code-container" id="code-{{ question_id }}">
+                                                <textarea>{{ qa.answer.answer_content }}</textarea>
+                                            </div>
+                                        {% else %}
+                                            <p class="text-muted">未作答</p>
+                                        {% endif %}
+                                    {% endif %}
+                                </div>
+
+                                <!-- 标准答案 (仅在考试结束后显示) -->
+                                {% if exam.end_time < now %}
+                                <div class="standard-answer mb-3">
+                                    <h6 class="font-weight-bold">标准答案:</h6>
+                                    {% if qa.question.question_type == 'choice' %}
+                                        <ul>
+                                            {% for option in qa.question.correct_options %}
+                                                <li>{{ option.content }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% elif qa.question.question_type == 'fill_blank' %}
+                                        <pre>{{ qa.question.standard_answer }}</pre>
+                                    {% elif qa.question.question_type == 'programming' %}
+                                        <p class="text-muted">参考多种解法，请参考教师反馈。</p>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+
+                                <!-- 教师反馈 -->
+                                {% if qa.answer and qa.answer.feedback %}
+                                <div class="feedback">
+                                    <h6 class="font-weight-bold">评阅反馈:</h6>
+                                    <div class="alert alert-info">
+                                        {{ qa.answer.feedback }}
+                                    </div>
+                                </div>
+                                {% endif %}
+
+                                <!-- 解释 -->
+                                {% if exam.end_time < now and qa.question.explanation %}
+                                <div class="explanation mt-3">
+                                    <h6 class="font-weight-bold">解析:</h6>
+                                    <div class="card">
+                                        <div class="card-body">
+                                            {{ qa.question.explanation|safe }}
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <hr>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    $(document).ready(function() {
+        // 初始化代码编辑器（只读模式）
+        $('.code-container').each(function() {
+            const textarea = $(this).find('textarea')[0];
+            const editor = CodeMirror.fromTextArea(textarea, {
+                mode: 'r',
+                theme: 'monokai',
+                lineNumbers: true,
+                readOnly: true
+            });
+        });
+
+        // 滚动到锚点位置
+        if (window.location.hash) {
+            const hash = window.location.hash;
+            $('html, body').animate({
+                scrollTop: $(hash).offset().top - 70
+            }, 300);
+        }
+
+        // 点击题目导航时滚动到相应位置
+        $('.list-group-item').on('click', function(e) {
+            const target = $(this).attr('href');
+            $('html, body').animate({
+                scrollTop: $(target).offset().top - 70
+            }, 300);
+        });
+    });
+</script>
+{% endblock %}

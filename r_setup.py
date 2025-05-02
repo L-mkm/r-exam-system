@@ -69,7 +69,12 @@ def run_r_test(student_code, test_code, timeout=10):
 
         # 尝试执行学生代码
         try:
-            ro.r(f'eval(parse(text="{student_code.replace("""", "\\""") if student_code else ""}"), envir=student_env)')
+            if student_code:
+                processed_code = student_code.replace('"""', '\\"')
+            else:
+                processed_code = ""
+
+            ro.r(f'eval(parse(text="{processed_code}"), envir=student_env)')
             status = "success"
             message = "代码执行成功"
         except Exception as e:
@@ -91,7 +96,12 @@ def run_r_test(student_code, test_code, timeout=10):
         ro.r(f'{test_env_name} <- new.env(parent=student_env)')
 
         try:
-            ro.r(f'eval(parse(text="{test_code.replace("""", "\\""") if test_code else ""}"), envir={test_env_name})')
+            if test_code:
+                processed_test_code = test_code.replace('"""', '\\"')
+            else:
+                processed_test_code = ""
+
+            ro.r(f'eval(parse(text="{processed_test_code}"), envir={test_env_name})')
 
             # 获取测试结果
             if ro.r(f'exists("test_result", envir={test_env_name})')[0]:
