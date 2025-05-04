@@ -35,7 +35,7 @@ def load_user(user_id):
 # app = Flask(__name__)
 # 第三次修改：修改为工厂模式，返回一个可配置的实例，使应用更灵活，更符合Python的模块化设计理念
 def create_app():
-    app = Flask(__name__)
+    app = Flask(__name__, static_folder='static', template_folder='templates')
 
     # 配置数据库
     basedir = os.path.abspath(os.path.dirname(__file__))

@@ -176,7 +176,7 @@ def get_question(exam_id, question_id):
         }
 
         # 如果是选择题，添加选项
-        if hasattr(question, 'is_choice') and question.is_choice():
+        if question.question_type == 'choice':
             options = []
             for option in question.options:
                 options.append({
@@ -190,6 +190,59 @@ def get_question(exam_id, question_id):
         # 记录错误到日志
         current_app.logger.error(f"获取题目时出错: {str(e)}")
         return jsonify({'error': '服务器错误', 'message': f'获取题目时发生错误: {str(e)}'}), 500
+
+
+@exams_bp.route('/student/get_answer_status/<int:exam_id>')
+@login_required
+def get_answer_status(exam_id):
+    """获取答题状态（AJAX）"""
+    try:
+        if not current_user.is_student():
+            return jsonify({'error': '权限不足', 'message': '只有学生可以访问此API'}), 403
+
+        # 获取考试信息
+        exam = Exam.query.get(exam_id)
+        if not exam:
+            return jsonify({'error': '考试不存在', 'message': f'找不到ID为{exam_id}的考试'}), 404
+
+        # 获取学生得分记录
+        score = Score.query.filter_by(
+            student_id=current_user.id,
+            exam_id=exam_id
+        ).first()
+
+        if not score:
+            return jsonify({'error': '考试记录不存在', 'message': '未找到您的考试记录'}), 404
+
+        # 获取考试所有题目
+        exam_questions = ExamQuestion.query.filter_by(exam_id=exam_id).all()
+
+        # 获取已回答的题目
+        answered_questions = StudentAnswer.query.filter_by(score_id=score.id).all()
+
+        # 统计已回答题目数
+        answered_count = len(answered_questions)
+        total_count = len(exam_questions)
+
+        # 创建题目回答状态
+        question_status = {}
+        for eq in exam_questions:
+            is_answered = any(a.question_id == eq.question_id for a in answered_questions)
+            question_status[str(eq.question_id)] = is_answered  # 将键转换为字符串，确保JSON序列化正确
+
+        # 记录一下返回结果用于调试
+        result = {
+            'answered_count': answered_count,
+            'total_count': total_count,
+            'question_status': question_status
+        }
+        current_app.logger.debug(f"答题状态API返回: {result}")
+
+        return jsonify(result)
+    except Exception as e:
+        # 记录错误到日志
+        current_app.logger.error(f"获取答题状态时出错: {str(e)}")
+        return jsonify({'error': '服务器错误', 'message': f'获取答题状态时发生错误: {str(e)}'}), 500
 
 
 @exams_bp.route('/student/save_answer', methods=['POST'])
@@ -365,59 +418,6 @@ def check_time(exam_id):
         # 记录错误到日志
         current_app.logger.error(f"检查考试时间时出错: {str(e)}")
         return jsonify({'error': '服务器错误', 'message': f'检查考试时间时发生错误: {str(e)}'}), 500
-
-
-@exams_bp.route('/student/get_answer_status/<int:exam_id>')
-@login_required
-def get_answer_status(exam_id):
-    """获取答题状态（AJAX）"""
-    try:
-        if not current_user.is_student():
-            return jsonify({'error': '权限不足', 'message': '只有学生可以访问此API'}), 403
-
-        # 获取考试信息
-        exam = Exam.query.get(exam_id)
-        if not exam:
-            return jsonify({'error': '考试不存在', 'message': f'找不到ID为{exam_id}的考试'}), 404
-
-        # 获取学生得分记录
-        score = Score.query.filter_by(
-            student_id=current_user.id,
-            exam_id=exam_id
-        ).first()
-
-        if not score:
-            return jsonify({'error': '考试记录不存在', 'message': '未找到您的考试记录'}), 404
-
-        # 获取考试所有题目
-        exam_questions = ExamQuestion.query.filter_by(exam_id=exam_id).all()
-
-        # 获取已回答的题目
-        answered_questions = StudentAnswer.query.filter_by(score_id=score.id).all()
-
-        # 统计已回答题目数
-        answered_count = len(answered_questions)
-        total_count = len(exam_questions)
-
-        # 创建题目回答状态
-        question_status = {}
-        for eq in exam_questions:
-            is_answered = any(a.question_id == eq.question_id for a in answered_questions)
-            question_status[str(eq.question_id)] = is_answered  # 将键转换为字符串，确保JSON序列化正确
-
-        # 记录一下返回结果用于调试
-        result = {
-            'answered_count': answered_count,
-            'total_count': total_count,
-            'question_status': question_status
-        }
-        current_app.logger.debug(f"答题状态API返回: {result}")
-
-        return jsonify(result)
-    except Exception as e:
-        # 记录错误到日志
-        current_app.logger.error(f"获取答题状态时出错: {str(e)}")
-        return jsonify({'error': '服务器错误', 'message': f'获取答题状态时发生错误: {str(e)}'}), 500
 
 
 def auto_grade_choice_questions(score):
