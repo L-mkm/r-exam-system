@@ -6,6 +6,59 @@
 {{ super() }}
 <!-- 添加jQuery -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<!-- jQuery加载状态全局监控 - 更强大的jQuery加载保障机制 -->
+<script>
+// 在全局作用域添加jQuery加载监控
+(function() {
+    let jQueryAttempts = 0;
+    const MAX_ATTEMPTS = 3;
+
+    function checkAndLoadJQuery(callback) {
+        if (typeof jQuery !== 'undefined') {
+            console.log('jQuery已成功加载，版本:', jQuery.fn.jquery);
+            // 重要：加载成功后立即调用回调函数
+            if (callback) callback();
+            return true;
+        }
+
+        if (jQueryAttempts >= MAX_ATTEMPTS) {
+            console.error('多次尝试加载jQuery失败');
+            alert('无法加载jQuery库，部分功能可能不可用。请刷新页面重试。');
+            return false;
+        }
+
+        jQueryAttempts++;
+        console.log(`尝试加载jQuery (${jQueryAttempts}/${MAX_ATTEMPTS})...`);
+
+        const script = document.createElement('script');
+        script.src = jQueryAttempts === MAX_ATTEMPTS
+            ? "{{ url_for('static', filename='js/jquery-3.6.0.min.js') }}"
+            : 'https://code.jquery.com/jquery-3.6.0.min.js';
+
+        script.onload = function() {
+            console.log(`jQuery加载成功 (尝试 ${jQueryAttempts}/${MAX_ATTEMPTS})`);
+            // 使用传入的回调函数
+            if (callback) {
+                callback();
+            }
+        };
+
+        script.onerror = function() {
+            console.error(`jQuery加载失败 (尝试 ${jQueryAttempts}/${MAX_ATTEMPTS})`);
+            setTimeout(checkAndLoadJQuery, 1000); // 1秒后重试
+        };
+
+        document.head.appendChild(script);
+        return false;
+
+    }
+
+    // 页面加载完成后检查jQuery
+    window.addEventListener('DOMContentLoaded', function() {
+        setTimeout(checkAndLoadJQuery, 500);
+    });
+})();
+</script>
 <!-- 添加CodeMirror库用于R代码编辑 -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.3/codemirror.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.3/theme/monokai.min.css">
@@ -85,9 +138,16 @@
 
             alert(`尝试加载题目ID: ${qid}, 考试ID: ${examId}`);
 
-            // 直接使用jQuery的AJAX获取题目
-            $.getJSON(`/exams/student/get_question/${examId}/${qid}`)
-              .done(function(data) {
+            // 使用原生 JavaScript 的 Fetch API 代替 jQuery
+            debugLog('使用fetch API发送请求...');
+            fetch(`/exams/student/get_question/${examId}/${qid}`)
+              .then(response => {
+                if (!response.ok) {
+                  throw new Error(`HTTP错误: ${response.status}`);
+                }
+                return response.json();
+              })
+              .then(data => {
                 alert('题目加载成功！查看控制台获取详细信息');
                 console.log('题目数据:', data);
 
@@ -103,9 +163,9 @@
                   `;
                 }
               })
-              .fail(function(xhr, status, error) {
-                alert(`题目加载失败: ${status} - ${error}`);
-                console.error('题目加载错误:', xhr.responseText);
+              .catch(error => {
+                alert(`题目加载失败: ${error.message}`);
+                console.error('题目加载错误:', error);
               });
           } catch (e) {
             alert(`发生错误: ${e.message}`);
@@ -137,11 +197,13 @@
               const qid = item.getAttribute('data-question-id');
               if (!qid) return;
 
-              // 移除现有事件
-              item.removeEventListener('click', null);
+              // 移除任何现有事件（注意：这种方式并不能移除所有事件，只是一个尝试）
+              // 更安全的做法是克隆节点并替换
+              const newItem = item.cloneNode(true);
+              item.parentNode.replaceChild(newItem, item);
 
               // 添加新事件
-              item.addEventListener('click', function() {
+              newItem.addEventListener('click', function() {
                 console.log(`点击题目: ${qid}`);
                 emergencyLoadQuestion(examId, qid);
               });
@@ -156,8 +218,17 @@
 
         // 辅助函数：加载特定题目
         function emergencyLoadQuestion(examId, questionId) {
-          $.getJSON(`/exams/student/get_question/${examId}/${questionId}`)
-            .done(function(data) {
+          // 使用原生Fetch API代替jQuery
+          debugLog(`正在加载题目: ID=${questionId}, 考试ID=${examId}`);
+
+          fetch(`/exams/student/get_question/${examId}/${questionId}`)
+            .then(response => {
+              if (!response.ok) {
+                throw new Error(`HTTP错误: ${response.status} ${response.statusText}`);
+              }
+              return response.json();
+            })
+            .then(data => {
               console.log('题目数据:', data);
 
               // 显示题目内容
@@ -171,10 +242,28 @@
                   </div>
                 `;
               }
+
+              // 标记当前导航项为激活状态
+              document.querySelectorAll('.question-nav-item').forEach(item => {
+                item.classList.remove('active');
+                if (item.getAttribute('data-question-id') === questionId) {
+                  item.classList.add('active');
+                }
+              });
             })
-            .fail(function(xhr, status, error) {
-              console.error('题目加载错误:', xhr.responseText);
-              alert(`题目加载失败: ${status} - ${error}`);
+            .catch(error => {
+              console.error('题目加载错误:', error);
+              alert(`题目加载失败: ${error.message}`);
+
+              // 在调试区域显示错误
+              const debugContent = document.getElementById('debug-content');
+              if (debugContent) {
+                debugContent.innerHTML += `
+                  <div class="alert alert-danger mt-2">
+                    <strong>加载题目错误:</strong> ${error.message}
+                  </div>
+                `;
+              }
             });
         }
         </script>
@@ -185,26 +274,30 @@
             var resultElement = document.getElementById('test-result');
             resultElement.textContent = '正在发送请求...';
 
-            // 检查jQuery是否已加载
-            if (typeof jQuery === 'undefined') {
-                resultElement.textContent = '错误: jQuery未加载!';
-                // 尝试手动加载jQuery
-                var script = document.createElement('script');
-                script.src = 'https://code.jquery.com/jquery-3.6.0.min.js';
-                script.onload = function() {
-                    resultElement.textContent = 'jQuery已加载，请再次点击测试按钮';
-                };
-                document.head.appendChild(script);
-                return;
-            }
-
-            // 使用已加载的jQuery发送请求
-            jQuery.getJSON('/exams/student/get_answer_status/1')
-                .done(function(data) {
+            // 使用原生Fetch API代替jQuery
+            fetch('/exams/student/get_answer_status/1')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP错误: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
                     resultElement.textContent = 'API请求成功: ' + JSON.stringify(data);
                 })
-                .fail(function(xhr, status, error) {
-                    resultElement.textContent = 'API请求失败: ' + status + ' - ' + error;
+                .catch(error => {
+                    resultElement.textContent = 'API请求失败: ' + error.message;
+
+                    // 如果是jQuery未定义导致的错误，尝试加载jQuery
+                    if (typeof jQuery === 'undefined') {
+                        resultElement.textContent += ' (jQuery未加载)';
+                        var script = document.createElement('script');
+                        script.src = 'https://code.jquery.com/jquery-3.6.0.min.js';
+                        script.onload = function() {
+                            resultElement.textContent = 'jQuery已加载，请再次点击测试按钮';
+                        };
+                        document.head.appendChild(script);
+                    }
                 });
         }
         </script>
@@ -422,19 +515,14 @@
     let autoSaveTimer = null;
     let lastSaveTime = null;
 
-    // 页面加载完成后执行
     document.addEventListener('DOMContentLoaded', function() {
-        // 确保jQuery已加载
-        if (typeof jQuery === 'undefined') {
-            console.error('jQuery未加载，尝试加载jQuery');
-            var script = document.createElement('script');
-            script.src = 'https://code.jquery.com/jquery-3.6.0.min.js';
-            script.onload = initializeExam;
-            document.head.appendChild(script);
-        } else {
-            console.log('jQuery已加载，初始化考试系统');
+        console.log('DOM已加载，开始检查jQuery');
+
+        // 直接调用我们修改过的函数，传入一个匿名函数作为回调
+        checkAndLoadJQuery(function() {
+            console.log('jQuery已确认加载，现在初始化考试系统');
             initializeExam();
-        }
+        });
     });
 
     console.log('jQuery版本:', $.fn.jquery); // 检查jQuery版本
