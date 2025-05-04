@@ -127,58 +127,69 @@ def take_exam(exam_id):
 @login_required
 def get_question(exam_id, question_id):
     """获取题目详情"""
-    if not current_user.is_student():
-        return jsonify({'error': '权限不足'}), 403
+    try:
+        if not current_user.is_student():
+            return jsonify({'error': '权限不足', 'message': '只有学生可以访问此API'}), 403
 
-    # 获取考试信息
-    exam = Exam.query.get_or_404(exam_id)
+        # 获取考试信息
+        exam = Exam.query.get(exam_id)
+        if not exam:
+            return jsonify({'error': '考试不存在', 'message': f'找不到ID为{exam_id}的考试'}), 404
 
-    # 获取题目信息
-    question = Question.query.get_or_404(question_id)
+        # 获取题目信息
+        question = Question.query.get(question_id)
+        if not question:
+            return jsonify({'error': '题目不存在', 'message': f'找不到ID为{question_id}的题目'}), 404
 
-    # 获取考试题目关联信息
-    exam_question = ExamQuestion.query.filter_by(
-        exam_id=exam_id,
-        question_id=question_id
-    ).first_or_404()
+        # 获取考试题目关联信息
+        exam_question = ExamQuestion.query.filter_by(
+            exam_id=exam_id,
+            question_id=question_id
+        ).first()
+        if not exam_question:
+            return jsonify({'error': '题目不在考试中', 'message': f'题目{question_id}不属于考试{exam_id}'}), 404
 
-    # 获取学生得分记录
-    score = Score.query.filter_by(
-        student_id=current_user.id,
-        exam_id=exam_id
-    ).first()
+        # 获取学生得分记录
+        score = Score.query.filter_by(
+            student_id=current_user.id,
+            exam_id=exam_id
+        ).first()
 
-    if not score:
-        return jsonify({'error': '考试记录不存在'}), 404
+        if not score:
+            return jsonify({'error': '考试记录不存在', 'message': '未找到您的考试记录'}), 404
 
-    # 获取学生已保存的答案
-    student_answer = StudentAnswer.query.filter_by(
-        score_id=score.id,
-        question_id=question_id
-    ).first()
+        # 获取学生已保存的答案
+        student_answer = StudentAnswer.query.filter_by(
+            score_id=score.id,
+            question_id=question_id
+        ).first()
 
-    # 准备题目数据
-    question_data = {
-        'id': question.id,
-        'title': question.title,
-        'content': question.content,
-        'question_type': question.question_type,
-        'score': exam_question.score,
-        'answer_template': question.answer_template,
-        'saved_answer': student_answer.answer_content if student_answer else '',
-    }
+        # 准备题目数据
+        question_data = {
+            'id': question.id,
+            'title': question.title,
+            'content': question.content,
+            'question_type': question.question_type,
+            'score': exam_question.score,
+            'answer_template': question.answer_template,
+            'saved_answer': student_answer.answer_content if student_answer else '',
+        }
 
-    # 如果是选择题，添加选项
-    if question.is_choice():
-        options = []
-        for option in question.options:
-            options.append({
-                'id': option.id,
-                'content': option.content,
-            })
-        question_data['options'] = options
+        # 如果是选择题，添加选项
+        if hasattr(question, 'is_choice') and question.is_choice():
+            options = []
+            for option in question.options:
+                options.append({
+                    'id': option.id,
+                    'content': option.content,
+                })
+            question_data['options'] = options
 
-    return jsonify(question_data)
+        return jsonify(question_data)
+    except Exception as e:
+        # 记录错误到日志
+        current_app.logger.error(f"获取题目时出错: {str(e)}")
+        return jsonify({'error': '服务器错误', 'message': f'获取题目时发生错误: {str(e)}'}), 500
 
 
 @exams_bp.route('/student/save_answer', methods=['POST'])
@@ -316,69 +327,97 @@ def view_result(exam_id):
 @login_required
 def check_time(exam_id):
     """检查考试剩余时间（AJAX）"""
-    if not current_user.is_student():
-        return jsonify({'error': '权限不足'}), 403
+    try:
+        if not current_user.is_student():
+            return jsonify({'error': '权限不足', 'message': '只有学生可以访问此API'}), 403
 
-    # 获取考试信息
-    exam = Exam.query.get_or_404(exam_id)
+        # 获取考试信息
+        exam = Exam.query.get(exam_id)
+        if not exam:
+            return jsonify({'error': '考试不存在', 'message': f'找不到ID为{exam_id}的考试'}), 404
 
-    # 获取当前时间
-    now = datetime.utcnow()
+        # 获取当前时间
+        now = datetime.utcnow()
+        current_app.logger.debug(f"当前时间: {now}, 考试开始时间: {exam.start_time}, 结束时间: {exam.end_time}")
 
-    # 计算剩余时间
-    if now > exam.end_time:
-        remaining_seconds = 0
-        status = 'ended'
-    elif now < exam.start_time:
-        remaining_seconds = int((exam.start_time - now).total_seconds())
-        status = 'not_started'
-    else:
-        remaining_seconds = int((exam.end_time - now).total_seconds())
-        status = 'in_progress'
+        # 计算剩余时间
+        if now > exam.end_time:
+            remaining_seconds = 0
+            status = 'ended'
+        elif now < exam.start_time:
+            remaining_seconds = int((exam.start_time - now).total_seconds())
+            status = 'not_started'
+        else:
+            remaining_seconds = int((exam.end_time - now).total_seconds())
+            status = 'in_progress'
 
-    return jsonify({
-        'remaining_seconds': remaining_seconds,
-        'status': status
-    })
+        result = {
+            'remaining_seconds': remaining_seconds,
+            'status': status,
+            'current_time': now.strftime('%Y-%m-%d %H:%M:%S'),
+            'start_time': exam.start_time.strftime('%Y-%m-%d %H:%M:%S'),
+            'end_time': exam.end_time.strftime('%Y-%m-%d %H:%M:%S')
+        }
+        current_app.logger.debug(f"检查时间API返回: {result}")
+
+        return jsonify(result)
+    except Exception as e:
+        # 记录错误到日志
+        current_app.logger.error(f"检查考试时间时出错: {str(e)}")
+        return jsonify({'error': '服务器错误', 'message': f'检查考试时间时发生错误: {str(e)}'}), 500
 
 
 @exams_bp.route('/student/get_answer_status/<int:exam_id>')
 @login_required
 def get_answer_status(exam_id):
     """获取答题状态（AJAX）"""
-    if not current_user.is_student():
-        return jsonify({'error': '权限不足'}), 403
+    try:
+        if not current_user.is_student():
+            return jsonify({'error': '权限不足', 'message': '只有学生可以访问此API'}), 403
 
-    # 获取考试信息
-    exam = Exam.query.get_or_404(exam_id)
+        # 获取考试信息
+        exam = Exam.query.get(exam_id)
+        if not exam:
+            return jsonify({'error': '考试不存在', 'message': f'找不到ID为{exam_id}的考试'}), 404
 
-    # 获取学生得分记录
-    score = Score.query.filter_by(
-        student_id=current_user.id,
-        exam_id=exam_id
-    ).first_or_404()
+        # 获取学生得分记录
+        score = Score.query.filter_by(
+            student_id=current_user.id,
+            exam_id=exam_id
+        ).first()
 
-    # 获取考试所有题目
-    exam_questions = ExamQuestion.query.filter_by(exam_id=exam_id).all()
+        if not score:
+            return jsonify({'error': '考试记录不存在', 'message': '未找到您的考试记录'}), 404
 
-    # 获取已回答的题目
-    answered_questions = StudentAnswer.query.filter_by(score_id=score.id).all()
+        # 获取考试所有题目
+        exam_questions = ExamQuestion.query.filter_by(exam_id=exam_id).all()
 
-    # 统计已回答题目数
-    answered_count = len(answered_questions)
-    total_count = len(exam_questions)
+        # 获取已回答的题目
+        answered_questions = StudentAnswer.query.filter_by(score_id=score.id).all()
 
-    # 创建题目回答状态
-    question_status = {}
-    for eq in exam_questions:
-        is_answered = any(a.question_id == eq.question_id for a in answered_questions)
-        question_status[eq.question_id] = is_answered
+        # 统计已回答题目数
+        answered_count = len(answered_questions)
+        total_count = len(exam_questions)
 
-    return jsonify({
-        'answered_count': answered_count,
-        'total_count': total_count,
-        'question_status': question_status
-    })
+        # 创建题目回答状态
+        question_status = {}
+        for eq in exam_questions:
+            is_answered = any(a.question_id == eq.question_id for a in answered_questions)
+            question_status[str(eq.question_id)] = is_answered  # 将键转换为字符串，确保JSON序列化正确
+
+        # 记录一下返回结果用于调试
+        result = {
+            'answered_count': answered_count,
+            'total_count': total_count,
+            'question_status': question_status
+        }
+        current_app.logger.debug(f"答题状态API返回: {result}")
+
+        return jsonify(result)
+    except Exception as e:
+        # 记录错误到日志
+        current_app.logger.error(f"获取答题状态时出错: {str(e)}")
+        return jsonify({'error': '服务器错误', 'message': f'获取答题状态时发生错误: {str(e)}'}), 500
 
 
 def auto_grade_choice_questions(score):

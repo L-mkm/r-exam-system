@@ -43,11 +43,200 @@
 
 {% block content %}
 <div class="container-fluid mt-3">
+    <div id="debug-output" class="alert alert-info">
+        <strong>调试信息:</strong>
+        <div id="debug-content">初始化调试区域 - 如果您能看到这条消息，表示调试区域正常工作</div>
+        <div class="mb-3">
+          <button id="test-api" class="btn btn-primary" onclick="testApi()">测试API请求</button>
+          <span id="test-result" class="ml-2"></span>
+        </div>
+
+        <div class="mt-3">
+          <button id="emergency-load" class="btn btn-warning" onclick="emergencyLoadFirst()">应急加载第一题</button>
+          <button id="emergency-nav-fix" class="btn btn-info ml-2" onclick="emergencyFixNav()">修复导航</button>
+          <button id="force-reload" class="btn btn-danger ml-2" onclick="location.reload()">强制重新加载</button>
+        </div>
+
+        <script>
+        // 全局应急函数
+        function emergencyLoadFirst() {
+          try {
+            // 尝试获取examId
+            const examData = document.getElementById('exam-data');
+            const examId = examData ? examData.dataset.examId : null;
+
+            if (!examId) {
+              alert('错误: 无法获取考试ID');
+              return;
+            }
+
+            // 尝试找到第一个题目导航项
+            const firstNavItem = document.querySelector('.question-nav-item');
+            if (!firstNavItem) {
+              alert('错误: 无法找到导航项');
+              return;
+            }
+
+            const qid = firstNavItem.getAttribute('data-question-id');
+            if (!qid) {
+              alert('错误: 无法获取题目ID');
+              return;
+            }
+
+            alert(`尝试加载题目ID: ${qid}, 考试ID: ${examId}`);
+
+            // 直接使用jQuery的AJAX获取题目
+            $.getJSON(`/exams/student/get_question/${examId}/${qid}`)
+              .done(function(data) {
+                alert('题目加载成功！查看控制台获取详细信息');
+                console.log('题目数据:', data);
+
+                // 显示题目内容
+                const container = document.getElementById('question-content-container');
+                if (container) {
+                  container.innerHTML = `
+                    <div class="alert alert-success">
+                      <h4>${data.title || '未知题目'}</h4>
+                      <div>${data.content || '无内容'}</div>
+                      <p class="mt-3">分值: ${data.score || 0}</p>
+                    </div>
+                  `;
+                }
+              })
+              .fail(function(xhr, status, error) {
+                alert(`题目加载失败: ${status} - ${error}`);
+                console.error('题目加载错误:', xhr.responseText);
+              });
+          } catch (e) {
+            alert(`发生错误: ${e.message}`);
+            console.error('加载题目时发生错误:', e);
+          }
+        }
+
+        // 修复导航事件
+        function emergencyFixNav() {
+          try {
+            // 获取examId
+            const examData = document.getElementById('exam-data');
+            const examId = examData ? examData.dataset.examId : null;
+
+            if (!examId) {
+              alert('错误: 无法获取考试ID');
+              return;
+            }
+
+            // 为所有导航项添加点击事件
+            const navItems = document.querySelectorAll('.question-nav-item');
+            if (navItems.length === 0) {
+              alert('错误: 未找到导航项');
+              return;
+            }
+
+            // 添加直接点击事件
+            navItems.forEach(function(item) {
+              const qid = item.getAttribute('data-question-id');
+              if (!qid) return;
+
+              // 移除现有事件
+              item.removeEventListener('click', null);
+
+              // 添加新事件
+              item.addEventListener('click', function() {
+                console.log(`点击题目: ${qid}`);
+                emergencyLoadQuestion(examId, qid);
+              });
+            });
+
+            alert(`已为${navItems.length}个导航项添加点击事件`);
+          } catch (e) {
+            alert(`修复导航时出错: ${e.message}`);
+            console.error('修复导航时出错:', e);
+          }
+        }
+
+        // 辅助函数：加载特定题目
+        function emergencyLoadQuestion(examId, questionId) {
+          $.getJSON(`/exams/student/get_question/${examId}/${questionId}`)
+            .done(function(data) {
+              console.log('题目数据:', data);
+
+              // 显示题目内容
+              const container = document.getElementById('question-content-container');
+              if (container) {
+                container.innerHTML = `
+                  <div class="alert alert-success">
+                    <h4>${data.title || '未知题目'}</h4>
+                    <div>${data.content || '无内容'}</div>
+                    <p class="mt-3">分值: ${data.score || 0}</p>
+                  </div>
+                `;
+              }
+            })
+            .fail(function(xhr, status, error) {
+              console.error('题目加载错误:', xhr.responseText);
+              alert(`题目加载失败: ${status} - ${error}`);
+            });
+        }
+        </script>
+
+        <script>
+        // 使用原生JavaScript而不是jQuery
+        function testApi() {
+            var resultElement = document.getElementById('test-result');
+            resultElement.textContent = '正在发送请求...';
+
+            // 检查jQuery是否已加载
+            if (typeof jQuery === 'undefined') {
+                resultElement.textContent = '错误: jQuery未加载!';
+                // 尝试手动加载jQuery
+                var script = document.createElement('script');
+                script.src = 'https://code.jquery.com/jquery-3.6.0.min.js';
+                script.onload = function() {
+                    resultElement.textContent = 'jQuery已加载，请再次点击测试按钮';
+                };
+                document.head.appendChild(script);
+                return;
+            }
+
+            // 使用已加载的jQuery发送请求
+            jQuery.getJSON('/exams/student/get_answer_status/1')
+                .done(function(data) {
+                    resultElement.textContent = 'API请求成功: ' + JSON.stringify(data);
+                })
+                .fail(function(xhr, status, error) {
+                    resultElement.textContent = 'API请求失败: ' + status + ' - ' + error;
+                });
+        }
+        </script>
+    </div>
+    <script>
+    // 添加简单的调试函数
+    function debugLog(message) {
+        const debugContent = document.getElementById('debug-content');
+        if (debugContent) {
+            const time = new Date().toLocaleTimeString();
+            debugContent.innerHTML += `<p>[${time}] ${message}</p>`;
+        }
+        console.log(message);
+    }
+
+
+    // 捕获全局JavaScript错误
+    window.onerror = function(message, source, lineno, colno, error) {
+        debugLog(`错误: ${message} (${source}:${lineno}:${colno})`);
+        return false;
+    };
+    </script>
   <div id="exam-data"
          data-exam-id="{{ exam.id }}"
          data-score-id="{{ score_id }}"
          data-question-ids="{{ exam_questions|map(attribute='question_id')|list|tojson }}"
+         data-api-base-path="{{ url_for('exams.student_exams') | replace('/student/exams', '') }}"
          style="display:none;">
+      <!-- 添加一个可见的后备信息 -->
+      <noscript>
+        考试ID: {{ exam.id }}, 总分: {{ exam.total_score }}, 题目数: {{ exam_questions|length }}
+      </noscript>
     </div>
     <div class="row">
         <!-- 左侧导航和状态 -->
@@ -234,99 +423,274 @@
     let lastSaveTime = null;
 
     // 页面加载完成后执行
-    $(document).ready(function() {
-        // 从数据容器读取数据
-        // const examData = document.getElementById('exam-data');
-        examId = examData.dataset.examId;
-        scoreId = examData.dataset.scoreId;
-        questionIds = JSON.parse(examData.dataset.questionIds);
-
-        // 初始化计时器
-        initTimer();
-
-        // 加载答题状态
-        updateAnswerStatus();
-
-        // 每30秒更新一次答题状态
-        setInterval(updateAnswerStatus, 30000);
-
-        // 绑定题目导航事件
-        $('.question-nav-item').on('click', function() {
-            const questionId = $(this).data('question-id');
-            const index = $(this).data('index') - 1;  // 转为0基索引
-            loadQuestion(questionId, index);
-        });
-
-        // 上一题/下一题按钮事件
-        $('#prev-question').on('click', function() {
-            navigateQuestion(-1);
-        });
-
-        $('#next-question').on('click', function() {
-            navigateQuestion(1);
-        });
-
-        // 保存答案按钮事件
-        $('#save-answer').on('click', function() {
-            saveCurrentAnswer();
-        });
-
-        // 提交考试前检查
-        $('#submit-exam').on('click', function() {
-            checkBeforeSubmit();
-        });
-
-        // 默认加载第一题
-        if (questionIds.length > 0) {
-            loadQuestion(questionIds[0], 0);
+    document.addEventListener('DOMContentLoaded', function() {
+        // 确保jQuery已加载
+        if (typeof jQuery === 'undefined') {
+            console.error('jQuery未加载，尝试加载jQuery');
+            var script = document.createElement('script');
+            script.src = 'https://code.jquery.com/jquery-3.6.0.min.js';
+            script.onload = initializeExam;
+            document.head.appendChild(script);
+        } else {
+            console.log('jQuery已加载，初始化考试系统');
+            initializeExam();
         }
-
-        // 启用窗口关闭提醒
-        window.addEventListener('beforeunload', function(e) {
-            const confirmationMessage = '离开页面将导致未保存的答案丢失，确定要离开吗？';
-            e.returnValue = confirmationMessage;
-            return confirmationMessage;
-        });
     });
+
+    console.log('jQuery版本:', $.fn.jquery); // 检查jQuery版本
+    console.log('DOM已加载，准备初始化考试系统');
+
+    // 初始化考试系统
+    function initializeExam() {
+        try {
+            // 使用jQuery语法，确保jQuery已加载
+            const $ = window.jQuery;
+            console.log("设置 AJAX 默认配置");
+
+            // 设置所有 AJAX 请求包含 CSRF 令牌
+            $.ajaxSetup({
+                beforeSend: function(xhr, settings) {
+                    if (!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type) && !this.crossDomain) {
+                        xhr.setRequestHeader("X-CSRFToken", "{{ csrf_token() }}");
+                    }
+                }
+            });
+
+            // 添加全局AJAX错误处理
+            $(document).ajaxError(function(event, jqXHR, settings, thrownError) {
+                const errorInfo = {
+                    url: settings.url,
+                    type: settings.type,
+                    statusCode: jqXHR.status,
+                    statusText: jqXHR.statusText,
+                    responseText: jqXHR.responseText,
+                    error: thrownError
+                };
+                console.error('全局AJAX错误:', errorInfo);
+
+                // 在调试区域显示错误
+                $('#debug-content').append(`
+                    <div class="alert alert-danger">
+                        <strong>AJAX错误:</strong> ${settings.url} - ${jqXHR.status} ${jqXHR.statusText}
+                    </div>
+                `);
+            });
+
+            // 从数据容器读取数据
+            const examData = document.getElementById('exam-data');
+            examId = examData.dataset.examId;
+            scoreId = examData.dataset.scoreId;
+            try {
+                questionIds = JSON.parse(examData.dataset.questionIds || '[]');
+                console.log('解析到的题目ID列表:', questionIds);
+
+                // 检查是否成功解析题目ID
+                if (!questionIds.length) {
+                    console.error('警告: 题目ID列表为空');
+                    $('#debug-content').append(`
+                        <div class="alert alert-warning">
+                            <strong>警告:</strong> 未获取到题目ID列表
+                        </div>
+                    `);
+                }
+            } catch (e) {
+                console.error('解析题目ID列表出错:', e, '原始数据:', examData.dataset.questionIds);
+                questionIds = [];
+                $('#debug-content').append(`
+                    <div class="alert alert-danger">
+                        <strong>错误:</strong> 题目ID列表解析失败 - ${e.message}
+                    </div>
+                `);
+            }
+
+            console.log('读取考试数据:', {examId, scoreId, questionIds});
+
+            // 设置API路径 - 不使用basePath拼接，直接使用完整路径
+            window.apiUrls = {
+                getQuestion: (eid, qid) => `/exams/student/get_question/${eid}/${qid}`,
+                saveAnswer: () => `/exams/student/save_answer`,
+                checkTime: (eid) => `/exams/student/check_time/${eid}`,
+                getAnswerStatus: (eid) => `/exams/student/get_answer_status/${eid}`
+            };
+
+            // 初始化计时器
+            initTimer();
+
+            // 加载答题状态
+            updateAnswerStatus();
+
+            // 每30秒更新一次答题状态
+            setInterval(updateAnswerStatus, 30000);
+
+            // 使用事件委托绑定题目导航事件
+            console.log('绑定题目导航事件');
+            $('#question-nav').on('click', '.question-nav-item', function(e) {
+                e.preventDefault();
+                const questionId = $(this).data('question-id');
+                const index = $(this).data('index') - 1;  // 转为0基索引
+                console.log(`点击题目导航: ID=${questionId}, 索引=${index}`);
+
+                if (questionId) {
+                    loadQuestion(questionId, index);
+                } else {
+                    console.error('点击的导航项没有问题ID');
+                }
+            });
+
+            // 额外添加直接绑定测试
+            console.log('尝试直接绑定第一个导航项');
+            const firstNavItem = $('.question-nav-item').first();
+            if (firstNavItem.length > 0) {
+                const qid = firstNavItem.data('question-id');
+                const idx = firstNavItem.data('index') - 1;
+                console.log(`第一个导航项: ID=${qid}, 索引=${idx}`);
+
+                // 尝试直接添加点击处理程序
+                firstNavItem.on('click', function() {
+                    console.log('第一个导航项被点击!');
+                    loadQuestion(qid, idx);
+                });
+            }
+
+            // 上一题/下一题按钮事件
+            $('#prev-question').on('click', function() {
+                navigateQuestion(-1);
+            });
+
+            $('#next-question').on('click', function() {
+                navigateQuestion(1);
+            });
+
+            // 保存答案按钮事件
+            $('#save-answer').on('click', function() {
+                saveCurrentAnswer();
+            });
+
+            // 提交考试前检查
+            $('#submit-exam').on('click', function() {
+                checkBeforeSubmit();
+            });
+
+            // 默认加载第一题
+            console.log('准备加载第一题, questionIds:', questionIds);
+            if (questionIds && questionIds.length > 0) {
+                // 确保questionIds是数组而不是对象
+                if (typeof questionIds === 'object' && !Array.isArray(questionIds)) {
+                    questionIds = Object.keys(questionIds);
+                    console.log('将questionIds转换为数组:', questionIds);
+                }
+
+                if (questionIds.length > 0) {
+                    const firstId = questionIds[0];
+                    console.log('加载第一题, ID:', firstId);
+                    loadQuestion(firstId, 0);
+                } else {
+                    console.error('questionIds数组为空');
+                    $('#question-content-container').html(`
+                        <div class="alert alert-warning">
+                            <strong>提示:</strong> 未找到题目。请刷新页面重试。
+                        </div>
+                    `);
+                }
+            } else {
+                console.error('无法获取题目列表');
+                $('#question-content-container').html(`
+                    <div class="alert alert-danger">
+                        <strong>错误:</strong> 无法获取题目列表。请刷新页面重试。
+                    </div>
+                `);
+            }
+
+            // 启用窗口关闭提醒
+            window.addEventListener('beforeunload', function(e) {
+                const confirmationMessage = '离开页面将导致未保存的答案丢失，确定要离开吗？';
+                e.returnValue = confirmationMessage;
+                return confirmationMessage;
+            });
+
+            console.log('考试系统初始化完成');
+        } catch (error) {
+            console.error('初始化考试系统时出错:', error);
+            document.getElementById('question-content-container').innerHTML = `
+                <div class="alert alert-danger">
+                    <strong>初始化错误:</strong> ${error.message}
+                </div>
+            `;
+        }
+    }
 
     // 初始化计时器
     function initTimer() {
-        const remainingSeconds = parseInt($('#exam-timer').data('remaining'));
-        let countdown = remainingSeconds;
+        console.log('初始化计时器');
+        const timerElement = $('#exam-timer');
+        let remainingSeconds = parseInt(timerElement.data('remaining'));
 
-        function updateTimer() {
-            if (countdown <= 0) {
+        console.log(`计时器初始剩余时间: ${remainingSeconds}秒`);
+
+        // 检查剩余时间是否有效
+        if (isNaN(remainingSeconds) || remainingSeconds <= 0) {
+            console.log('剩余时间无效，尝试从服务器获取');
+
+            // 直接设置一个默认值，同时从服务器获取
+            remainingSeconds = 7200; // 默认2小时
+            updateTimerDisplay(remainingSeconds);
+
+            // 从服务器获取正确的时间
+            $.ajax({
+                url: `/exams/student/check_time/${examId}`,
+                method: 'GET',
+                dataType: 'json',
+                success: function(data) {
+                    console.log('从服务器获取到的时间数据:', data);
+                    if (data.remaining_seconds > 0) {
+                        remainingSeconds = data.remaining_seconds;
+                        console.log(`更新计时器剩余时间: ${remainingSeconds}秒`);
+                        // 更新显示
+                        updateTimerDisplay(remainingSeconds);
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('获取剩余时间失败:', error);
+                }
+            });
+        } else {
+            // 立即更新显示
+            updateTimerDisplay(remainingSeconds);
+        }
+
+        // 启动计时器
+        const timerInterval = setInterval(function() {
+            remainingSeconds--;
+
+            if (remainingSeconds <= 0) {
                 clearInterval(timerInterval);
                 timeUp();
                 return;
             }
 
-            const hours = Math.floor(countdown / 3600);
-            const minutes = Math.floor((countdown % 3600) / 60);
-            const seconds = countdown % 60;
-
-            $('#hours').text(hours.toString().padStart(2, '0'));
-            $('#minutes').text(minutes.toString().padStart(2, '0'));
-            $('#seconds').text(seconds.toString().padStart(2, '0'));
+            updateTimerDisplay(remainingSeconds);
 
             // 时间小于15分钟，显示警告颜色
-            if (countdown < 900) {
+            if (remainingSeconds < 900) {
                 $('#exam-timer').addClass('timer-warning');
             }
 
             // 时间小于5分钟，显示危险颜色
-            if (countdown < 300) {
+            if (remainingSeconds < 300) {
                 $('#exam-timer').removeClass('timer-warning').addClass('timer-danger');
             }
+        }, 1000);
 
-            countdown--;
+        // 辅助函数：更新计时器显示
+        function updateTimerDisplay(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = seconds % 60;
+
+            $('#hours').text(String(hours).padStart(2, '0'));
+            $('#minutes').text(String(minutes).padStart(2, '0'));
+            $('#seconds').text(String(secs).padStart(2, '0'));
         }
-
-        // 立即更新一次
-        updateTimer();
-
-        // 每秒更新一次
-        const timerInterval = setInterval(updateTimer, 1000);
     }
 
     // 时间到处理函数
@@ -345,6 +709,30 @@
 
     // 加载题目
     function loadQuestion(questionId, index) {
+        console.log(`尝试加载题目: questionId=${questionId}, index=${index}, examId=${examId}`);
+
+        // 检查所有必需变量
+        if (!examId) {
+            console.error("examId 未设置，无法加载题目");
+            $('#question-content-container').html(`
+                <div class="alert alert-danger">
+                    <strong>错误:</strong> 考试ID未设置，请刷新页面重试
+                </div>
+            `);
+            return;
+        }
+        // 添加参数验证
+        if (!questionId || isNaN(index)) {
+            const errorMsg = `加载题目参数无效: questionId=${questionId}, index=${index}`;
+            console.log(errorMsg);
+            $('#question-content-container').html(`
+                <div class="alert alert-danger">
+                    <strong>错误:</strong> ${errorMsg}
+                </div>
+            `);
+            return;
+        }
+
         // 保存当前答案
         if (currentQuestionId) {
             saveCurrentAnswer();
@@ -367,67 +755,94 @@
             </div>
         `);
 
-        // 发送AJAX请求获取题目详情
-        $.getJSON(`/student/get_question/${examId}/${questionId}`, function(data) {
-            // 设置题目标题
-            $('#current-question-title').text(data.title);
+        // 使用正确的API路径发送请求，添加更详细的日志记录
+        console.log(`正在请求题目: /exams/student/get_question/${examId}/${questionId}`);
 
-            // 根据题目类型生成不同的内容
-            let content = `
-                <div class="question-header mb-4">
-                    <h4>${data.title}</h4>
-                    <div class="d-flex justify-content-between">
-                        <span class="badge badge-primary">题型: ${getQuestionTypeName(data.question_type)}</span>
-                        <span class="badge badge-info">分值: ${data.score}分</span>
+        $.ajax({
+            url: `/exams/student/get_question/${examId}/${questionId}`,
+            method: 'GET',
+            dataType: 'json',
+            success: function(data) {
+                console.log(`题目加载成功: `, data);
+                // 设置题目标题
+                $('#current-question-title').text(data.title);
+
+                // 根据题目类型生成不同的内容
+                let content = `
+                    <div class="question-header mb-4">
+                        <h4>${data.title}</h4>
+                        <div class="d-flex justify-content-between">
+                            <span class="badge badge-primary">题型: ${getQuestionTypeName(data.question_type)}</span>
+                            <span class="badge badge-info">分值: ${data.score}分</span>
+                        </div>
                     </div>
-                </div>
-                <div class="question-content mb-4">
-                    ${data.content}
-                </div>
-                <div class="answer-container">
-            `;
+                    <div class="question-content mb-4">
+                        ${data.content}
+                    </div>
+                    <div class="answer-container">
+                `;
 
-            // 根据不同题型生成答题区域
-            if (data.question_type === 'choice') {
-                content += generateChoiceQuestionAnswer(data);
-            } else if (data.question_type === 'fill_blank') {
-                content += generateFillBlankQuestionAnswer(data);
-            } else if (data.question_type === 'programming') {
-                content += generateProgrammingQuestionAnswer(data);
+                // 根据不同题型生成答题区域
+                if (data.question_type === 'choice') {
+                    content += generateChoiceQuestionAnswer(data);
+                } else if (data.question_type === 'fill_blank') {
+                    content += generateFillBlankQuestionAnswer(data);
+                } else if (data.question_type === 'programming') {
+                    content += generateProgrammingQuestionAnswer(data);
+                }
+
+                content += `</div>`;
+
+                // 更新题目内容
+                $('#question-content-container').html(content);
+
+                // 初始化代码编辑器（如果是编程题）
+                if (data.question_type === 'programming') {
+                    initCodeEditor(data.saved_answer || data.answer_template || '');
+                }
+
+                // 如果有保存的答案，加载答案
+                if (data.saved_answer) {
+                    loadSavedAnswer(data);
+                }
+
+                // 清除上一次的自动保存计时器
+                if (autoSaveTimer) {
+                    clearTimeout(autoSaveTimer);
+                }
+
+                // 设置自动保存计时器（30秒自动保存一次）
+                autoSaveTimer = setTimeout(function autoSave() {
+                    saveCurrentAnswer();
+                    autoSaveTimer = setTimeout(autoSave, 30000);
+                }, 30000);
+            },
+            error: function(xhr, status, error) {
+                const errorDetails = {
+                    status: status,
+                    error: error,
+                    statusCode: xhr.status,
+                    responseText: xhr.responseText,
+                    readyState: xhr.readyState
+                };
+                console.error(`题目加载失败详情:`, errorDetails);
+
+                let errorMsg = '加载题目失败，请刷新页面重试。';
+                if (xhr.status === 404) {
+                    errorMsg = '题目不存在或无法访问。';
+                } else if (xhr.status === 403) {
+                    errorMsg = '没有权限访问此题目。';
+                } else if (xhr.status === 500) {
+                    errorMsg = '服务器内部错误。';
+                }
+
+                $('#question-content-container').html(`
+                    <div class="alert alert-danger">
+                        <strong>错误:</strong> ${errorMsg}<br>
+                        <small>${errorDetails}</small>
+                    </div>
+                `);
             }
-
-            content += `</div>`;
-
-            // 更新题目内容
-            $('#question-content-container').html(content);
-
-            // 初始化代码编辑器（如果是编程题）
-            if (data.question_type === 'programming') {
-                initCodeEditor(data.saved_answer || data.answer_template || '');
-            }
-
-            // 如果有保存的答案，加载答案
-            if (data.saved_answer) {
-                loadSavedAnswer(data);
-            }
-
-            // 清除上一次的自动保存计时器
-            if (autoSaveTimer) {
-                clearTimeout(autoSaveTimer);
-            }
-
-            // 设置自动保存计时器（30秒自动保存一次）
-            autoSaveTimer = setTimeout(function autoSave() {
-                saveCurrentAnswer();
-                autoSaveTimer = setTimeout(autoSave, 30000);
-            }, 30000);
-        })
-        .fail(function() {
-            $('#question-content-container').html(`
-                <div class="alert alert-danger">
-                    <strong>错误:</strong> 加载题目失败，请刷新页面重试。
-                </div>
-            `);
         });
     }
 
@@ -545,28 +960,49 @@
 
     // 保存当前答案
     function saveCurrentAnswer(silent = false) {
-        if (!currentQuestionId) return;
+        if (!currentQuestionId) {
+            console.error('保存答案失败: 当前题目ID未设置');
+            $('#save-status').text('保存失败: 未选择题目').show();
+            return false;
+        }
+
+        if (!scoreId) {
+            console.error('保存答案失败: 成绩ID未设置');
+            $('#save-status').text('保存失败: 系统错误').show();
+            return false;
+        }
 
         let answerContent = '';
 
         // 根据题目类型获取答案内容
         const questionType = $('.question-nav-item.active').find('small').text().trim();
 
-        if (questionType.includes('选择题')) {
-            // 选择题：收集选中的选项ID
-            const selectedOptions = [];
-            $('.choice-option:checked').each(function() {
-                selectedOptions.push($(this).val());
-            });
-            answerContent = JSON.stringify(selectedOptions);
-        } else if (questionType.includes('填空题')) {
-            // 填空题：获取文本
-            answerContent = $('#fill-blank-answer').val();
-        } else if (questionType.includes('编程题')) {
-            // 编程题：获取代码编辑器内容
-            if (codeMirrorEditor) {
-                answerContent = codeMirrorEditor.getValue();
+        try {
+            if (questionType.includes('选择题')) {
+                // 选择题：收集选中的选项ID
+                const selectedOptions = [];
+                $('.choice-option:checked').each(function() {
+                    selectedOptions.push($(this).val());
+                });
+                answerContent = JSON.stringify(selectedOptions);
+            } else if (questionType.includes('填空题')) {
+                // 填空题：获取文本
+                answerContent = $('#fill-blank-answer').val();
+            } else if (questionType.includes('编程题')) {
+                // 编程题：获取代码编辑器内容
+                if (codeMirrorEditor) {
+                    answerContent = codeMirrorEditor.getValue();
+                } else {
+                    console.warn('代码编辑器未初始化');
+                    answerContent = $('#code-editor').val();
+                }
+            } else {
+                console.warn('未知题目类型:', questionType);
             }
+        } catch (e) {
+            console.error('获取答案内容错误:', e);
+            $('#save-status').text('保存失败: 获取答案内容错误').show();
+            return false;
         }
 
         // 如果未静默模式，显示自动保存模态框
@@ -574,9 +1010,22 @@
             $('#autoSaveModal').modal('show');
         }
 
+        console.log('保存答案:', {
+            score_id: scoreId,
+            question_id: currentQuestionId,
+            answer_content: answerContent
+        });
+
+        // 添加详细的日志记录
+        console.log(`正在保存答案 - URL: /exams/student/save_answer, 数据:`, {
+            score_id: scoreId,
+            question_id: currentQuestionId,
+            answer_content: answerContent.substring(0, 100) + (answerContent.length > 100 ? '...' : '') // 只输出前100个字符避免日志过长
+        });
+
         // 发送AJAX请求保存答案
         $.ajax({
-            url: '/student/save_answer',
+            url: `/exams/student/save_answer`,
             method: 'POST',
             contentType: 'application/json',
             data: JSON.stringify({
@@ -585,6 +1034,8 @@
                 answer_content: answerContent
             }),
             success: function(response) {
+                console.log('保存答案响应:', response);
+
                 if (response.success) {
                     lastSaveTime = response.saved_at;
                     $('#save-status').text(`上次保存: ${lastSaveTime}`).show();
@@ -595,6 +1046,11 @@
 
                     // 将当前题目导航项标记为已回答
                     $(`.question-nav-item[data-question-id="${currentQuestionId}"]`).addClass('answered');
+
+                    console.log('答案保存成功');
+                } else {
+                    $('#save-status').text(`保存失败: ${response.message || '未知错误'}`).show();
+                    console.error('保存答案失败:', response.message);
                 }
 
                 // 如果未静默模式，隐藏自动保存模态框
@@ -604,7 +1060,15 @@
                     }, 500);
                 }
             },
-            error: function() {
+            error: function(xhr, status, error) {
+                const errorInfo = {
+                    status: status,
+                    error: error,
+                    statusCode: xhr.status,
+                    responseText: xhr.responseText,
+                    readyState: xhr.readyState
+                };
+                console.error('保存答案请求失败详情:', errorInfo);
                 $('#save-status').text('保存失败，请重试').show();
 
                 // 如果未静默模式，隐藏自动保存模态框
@@ -615,25 +1079,46 @@
                 }
             }
         });
+
+        return true;
     }
 
     // 更新答题状态
-    function updateAnswerStatus() {
-        $.getJSON(`/student/get_answer_status/${examId}`, function(data) {
-            questionStatus = data.question_status;
-            $('#answered-count').text(`${data.answered_count} / ${data.total_count}`);
+    function updateAnswerStatus(callback) {
+        if (!examId) {
+            console.log('更新答题状态失败: examId未设置');
+            return;
+        }
 
-            // 更新进度条
-            const progressPercent = Math.round((data.answered_count / data.total_count) * 100);
-            $('#progress-bar').css('width', `${progressPercent}%`).attr('aria-valuenow', progressPercent).text(`${progressPercent}%`);
+        // 使用正确的API路径
+        $.getJSON(`/exams/student/get_answer_status/${examId}`)
+            .done(function(data) {
+                questionStatus = data.question_status;
+                $('#answered-count').text(`${data.answered_count} / ${data.total_count}`);
 
-            // 更新导航项状态
-            for (const qId in questionStatus) {
-                if (questionStatus[qId]) {
-                    $(`.question-nav-item[data-question-id="${qId}"]`).addClass('answered');
+                // 更新进度条
+                const progressPercent = Math.round((data.answered_count / data.total_count) * 100);
+                $('#progress-bar').css('width', `${progressPercent}%`).attr('aria-valuenow', progressPercent).text(`${progressPercent}%`);
+
+                // 更新导航项状态
+                for (const qId in questionStatus) {
+                    if (questionStatus[qId]) {
+                        $(`.question-nav-item[data-question-id="${qId}"]`).addClass('answered');
+                    }
                 }
-            }
-        });
+
+                // 如果提供了回调函数，执行它
+                if (typeof callback === 'function') {
+                    callback();
+                }
+            })
+            .fail(function(xhr, status, error) {
+                console.log('获取答题状态失败:', status, error);
+                // 如果提供了回调函数，执行它
+                if (typeof callback === 'function') {
+                    callback();
+                }
+            });
     }
 
     // 更新进度条
@@ -656,32 +1141,136 @@
 
     // 导航到前一题或后一题
     function navigateQuestion(direction) {
-        const newIndex = currentIndex + direction;
+        console.log(`尝试导航: 当前索引=${currentIndex}, 方向=${direction}, 题目总数=${questionIds.length}`);
 
-        // 检查是否越界
-        if (newIndex < 0 || newIndex >= questionIds.length) {
+        // 验证当前索引
+        if (currentIndex === null || currentIndex === undefined) {
+            console.error('当前题目索引无效');
+            $('#debug-content').append(`<p class="text-danger">导航错误: 当前题目索引无效</p>`);
             return;
         }
 
-        loadQuestion(questionIds[newIndex], newIndex);
+        const newIndex = currentIndex + direction;
+
+        // 检查是否越界
+        if (newIndex < 0) {
+            console.log('已经是第一题，无法导航到上一题');
+            alert('已经是第一题');
+            return;
+        }
+
+        if (newIndex >= questionIds.length) {
+            console.log('已经是最后一题，无法导航到下一题');
+            alert('已经是最后一题');
+            return;
+        }
+
+        // 获取目标题目ID
+        const targetQuestionId = questionIds[newIndex];
+        if (!targetQuestionId) {
+            console.error(`题目ID列表索引${newIndex}处的值无效`);
+            $('#debug-content').append(`<p class="text-danger">导航错误: 无法获取索引${newIndex}处的题目ID</p>`);
+            return;
+        }
+
+        console.log(`导航到: 索引=${newIndex}, 题目ID=${targetQuestionId}`);
+        loadQuestion(targetQuestionId, newIndex);
     }
 
     // 检查提交前的状态
     function checkBeforeSubmit() {
-        // 计算未回答题目数
-        let unansweredCount = 0;
-        for (const qId of questionIds) {
-            if (!questionStatus[qId]) {
-                unansweredCount++;
-            }
+        console.log('准备提交考试，进行提交前检查');
+
+        // 保存当前答案
+        if (currentQuestionId) {
+            console.log('保存当前答案');
+            saveCurrentAnswer();
         }
 
-        // 如果有未回答题目，显示警告
-        if (unansweredCount > 0) {
-            $('#unanswered-warning').removeClass('d-none').text(`警告: 您还有 ${unansweredCount} 道题目未作答，确定要提交吗？`);
-        } else {
-            $('#unanswered-warning').addClass('d-none');
+        // 确保我们有问题ID列表
+        if (!questionIds || questionIds.length === 0) {
+            console.error('检查提交状态失败: 题目ID列表为空');
+            alert('系统错误: 无法获取题目列表');
+            return;
         }
+
+        // 显示加载状态
+        $('#submitConfirmModal .modal-body').html(`
+            <div class="text-center my-3">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="sr-only">检查中...</span>
+                </div>
+                <p class="mt-2">正在检查答题状态...</p>
+            </div>
+        `);
+
+        // 显示确认对话框
+        $('#submitConfirmModal').modal('show');
+
+        // 从服务器获取最新的答题状态
+        $.getJSON(`/exams/student/get_answer_status/${examId}`)
+            .done(function(data) {
+                console.log('获取到最新答题状态:', data);
+                questionStatus = data.question_status;
+
+                // 更新状态显示
+                $('#answered-count').text(`${data.answered_count} / ${data.total_count}`);
+
+                // 更新进度条
+                const progressPercent = Math.round((data.answered_count / data.total_count) * 100);
+                $('#progress-bar').css('width', `${progressPercent}%`).attr('aria-valuenow', progressPercent).text(`${progressPercent}%`);
+
+                // 计算未回答题目数和未回答题目列表
+                let unansweredCount = 0;
+                let unansweredQuestions = [];
+
+                for (let i = 0; i < questionIds.length; i++) {
+                    const qId = questionIds[i];
+                    if (!questionStatus[qId]) {
+                        unansweredCount++;
+                        const qElem = $(`.question-nav-item[data-question-id="${qId}"]`);
+                        const qTitle = qElem.find('span').first().text() || `题目 ${i+1}`;
+                        unansweredQuestions.push(qTitle);
+                    }
+                }
+
+                // 准备确认对话框内容
+                let modalContent = `
+                    <p>您确定要提交考试吗？提交后将无法再修改答案。</p>
+                `;
+
+                // 如果有未回答题目，显示警告
+                if (unansweredCount > 0) {
+                    modalContent += `
+                        <div id="unanswered-warning" class="alert alert-warning">
+                            <strong>警告:</strong> 您还有 ${unansweredCount} 道题目未作答
+                            <ul class="mb-0 mt-2">
+                                ${unansweredQuestions.map(q => `<li>${q}</li>`).join('')}
+                            </ul>
+                        </div>
+                    `;
+                } else {
+                    modalContent += `
+                        <div class="alert alert-success">
+                            <strong>提示:</strong> 您已完成所有题目
+                        </div>
+                    `;
+                }
+
+                // 更新模态框内容
+                $('#submitConfirmModal .modal-body').html(modalContent);
+            })
+            .fail(function(xhr, status, error) {
+                console.error('获取答题状态失败:', status, error);
+
+                // 显示错误信息
+                $('#submitConfirmModal .modal-body').html(`
+                    <div class="alert alert-danger">
+                        <strong>错误:</strong> 获取答题状态失败，请稍后再试
+                    </div>
+                    <p>您确定要提交考试吗？提交后将无法再修改答案。</p>
+                `);
+            });
     }
 
     // 获取题目类型名称
@@ -697,5 +1286,40 @@
                 return '未知类型';
         }
     }
+
+    // 从服务器获取最新的剩余时间
+    function checkRemainingTime() {
+        if (!examId) {
+            console.log('检查剩余时间失败: examId未设置');
+            return;
+        }
+
+        // 使用正确的API路径
+        $.getJSON(`/exams/student/check_time/${examId}`)
+            .done(function(data) {
+                if (data.remaining_seconds > 0) {
+                    $('#exam-timer').data('remaining', data.remaining_seconds);
+                    initTimer(); // 重新初始化计时器
+                } else if (data.status === 'ended') {
+                    timeUp(); // 如果考试已结束，调用超时函数
+                }
+            })
+            .fail(function(xhr, status, error) {
+                console.log('获取剩余时间失败:', status, error);
+                // 显示错误提示
+                $('#exam-timer').html('<span class="text-danger">无法获取剩余时间</span>');
+            });
+    }
 </script>
 {% endblock %}
+
+<div class="d-none debug-info">
+    <h4>调试信息：</h4>
+    <ul>
+        <li>考试ID: {{ exam.id }}</li>
+        <li>分数ID: {{ score_id }}</li>
+        <li>题目数量: {{ exam_questions|length }}</li>
+        <li>API基础路径: {{ url_for('exams.student_exams') }}</li>
+        <li>get_question示例: {{ url_for('exams.get_question', exam_id=exam.id, question_id=exam_questions[0].question_id if exam_questions else 0) }}</li>
+    </ul>
+</div>
