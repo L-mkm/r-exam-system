@@ -158,7 +158,8 @@
                                     {% elif qa.question.question_type == 'programming' %}
                                         {% if qa.answer and qa.answer.answer_content %}
                                             <div class="code-container" id="code-{{ question_id }}">
-                                                <textarea>{{ qa.answer.answer_content }}</textarea>
+                                                <!-- 只读模式显示代码 -->
+                                                <textarea readonly>{{ qa.answer.answer_content }}</textarea>
                                             </div>
                                         {% else %}
                                             <p class="text-muted">未作答</p>
