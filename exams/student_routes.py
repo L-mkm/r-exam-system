@@ -104,6 +104,10 @@ def take_exam(exam_id):
         if existing_score.is_graded:
             flash('您已完成此考试', 'info')
             return redirect(url_for('exams.view_result', exam_id=exam_id))
+        # 如果已最终提交，则不能再次参加
+        if existing_score.is_final_submit:
+            flash('您已提交此考试，无法再次修改答案。', 'info')
+            return redirect(url_for('exams.view_result', exam_id=exam_id))
         score_id = existing_score.id
 
     # 获取考试题目
@@ -323,6 +327,9 @@ def submit_exam(exam_id):
     # 标记为已提交
     score.is_graded = False  # 等待教师评分
     score.submit_time = datetime.utcnow()
+
+    # 设置为最终提交
+    score.is_final_submit = True
 
     # 自动评分选择题
     auto_grade_choice_questions(score)

@@ -117,4 +117,34 @@ saveAnswer(getAnswerDataCallback) {
     getLastSaveTime() {
         return this.lastSaveTime;
     }
+    setupFormListeners() {
+        // 选择题变更监听
+        document.querySelectorAll('input[type="checkbox"], input[type="radio"]').forEach(input => {
+            input.addEventListener('change', () => {
+                console.log('选择题选项变更，触发保存');
+                this.saveAnswer(() => {
+                    // 获取当前题目数据的回调
+                    return window.getCurrentQuestionData ? window.getCurrentQuestionData() : null;
+                });
+            });
+        });
+
+        // 填空题和编程题输入监听（使用防抖）
+        let debounceTimer;
+        document.querySelectorAll('textarea').forEach(textarea => {
+            textarea.addEventListener('input', () => {
+                clearTimeout(debounceTimer);
+                if (this.statusElement) {
+                    this.statusElement.textContent = "未保存的更改...";
+                }
+                debounceTimer = setTimeout(() => {
+                    console.log('文本输入延迟保存触发');
+                    this.saveAnswer(() => {
+                        // 获取当前题目数据的回调
+                        return window.getCurrentQuestionData ? window.getCurrentQuestionData() : null;
+                    });
+                }, 2000); // 2秒后保存
+            });
+        });
+    }
 }

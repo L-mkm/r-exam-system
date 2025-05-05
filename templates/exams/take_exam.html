@@ -26,6 +26,8 @@
                     <h5 class="mb-0">考试倒计时</h5>
                 </div>
                 <div class="card-body text-center">
+                    <!-- 保留原始元素，但隐藏 -->
+                    <span id="remaining-time" style="display: none;">{{ remaining_seconds }}</span>
                     <div id="exam-timer" class="alert alert-info">
                         <h3 id="timer-display" class="mb-0">
                             <span id="hours">00</span>:<span id="minutes">00</span>:<span id="seconds">00</span>
@@ -120,6 +122,18 @@
             </div>
         </div>
     </div>
+    <div class="fixed-bottom bg-light py-2 border-top" style="box-shadow: 0 -2px 10px rgba(0,0,0,0.1);">
+        <div class="container d-flex justify-content-between align-items-center">
+            <div>
+                <span id="save-status-indicator">自动保存: <span class="badge badge-secondary">就绪</span></span>
+                <small id="last-save-time" class="text-muted ml-2"></small>
+            </div>
+            <div>
+                <button type="button" id="global-save-button" class="btn btn-outline-primary mr-2">保存所有答案</button>
+                <button type="button" id="global-submit-button" class="btn btn-danger">提交考试</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- 传递数据给JS文件的脚本 -->
@@ -174,6 +188,67 @@ const CSRF_TOKEN = "{{ csrf_token() }}";
 
         // 启动计时器
         examTimer.start();
+    });
+</script>
+<script>
+    // 等待页面完全加载
+    window.addEventListener('load', function() {
+        // 确保原始 JavaScript 已经完成加载和初始化
+        setTimeout(function() {
+            try {
+                // 创建计时器实例
+                const examTimer = new ExamTimer({
+                    // 只使用最基本的选项
+                    remainingSeconds: REMAINING_SECONDS
+                });
+
+                // 启动计时器
+                examTimer.start();
+                console.log('计时器初始化成功');
+            } catch (error) {
+                console.error('计时器初始化失败:', error);
+            }
+        }, 500); // 延迟 500 毫秒初始化
+    });
+</script>
+<script src="{{ url_for('static', filename='js/exam_leaving_warning.js') }}"></script>
+<script>
+    // 提交确认流程
+    document.addEventListener('DOMContentLoaded', function() {
+        // 全局提交按钮
+        const globalSubmitBtn = document.getElementById('global-submit-button');
+        if (globalSubmitBtn) {
+            globalSubmitBtn.addEventListener('click', confirmSubmit);
+        }
+
+        // 原有提交按钮
+        const originalSubmitForm = document.getElementById('submit-exam-form');
+        if (originalSubmitForm) {
+            originalSubmitForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                confirmSubmit();
+            });
+        }
+
+        // 确认提交函数
+        function confirmSubmit() {
+            // 尝试保存所有答案
+            if (window.saveAllAnswers) {
+                try {
+                    window.saveAllAnswers();
+                } catch (e) {
+                    console.error('保存答案失败:', e);
+                }
+            }
+
+            // 显示确认对话框
+            const confirmed = confirm('提交后在考试时间结束前将不可修改答案！\n\n请仔细检查您的所有答案。\n\n确定要提交考试吗？');
+
+            if (confirmed) {
+                // 表单提交
+                document.getElementById('submit-exam-form').submit();
+            }
+        }
     });
 </script>
 {% endblock %}

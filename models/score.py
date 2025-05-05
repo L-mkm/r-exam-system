@@ -11,6 +11,7 @@ class Score(db.Model):
     total_score = db.Column(db.Float, default=0)  # 学生在此考试中的总得分
     submit_time = db.Column(db.DateTime, default=datetime.utcnow)
     is_graded = db.Column(db.Boolean, default=False)  # 是否已评分
+    is_final_submit = db.Column(db.Boolean, default=False)  # 是否最终提交
 
     # 建立与学生答案的关系
     student_answers = db.relationship('StudentAnswer', backref='score', lazy='dynamic')

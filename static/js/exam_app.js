@@ -60,10 +60,59 @@ document.addEventListener('DOMContentLoaded', function() {
         examQuestions.forEach(question => {
             questionStatus[question.id] = false;
         });
+
+        // 初始化自动保存
+        setupAutoSave();
+
+        // 全局保存按钮
+        const globalSaveButton = document.getElementById('global-save-button');
+        if (globalSaveButton) {
+            globalSaveButton.addEventListener('click', function() {
+                // 直接内联保存逻辑
+                if (currentQuestionId) {
+                    saveAnswer();
+
+                    // 更新保存状态
+                    const saveStatus = document.getElementById('save-status');
+                    if (saveStatus) {
+                        saveStatus.textContent = '已保存所有答案';
+                        saveStatus.style.display = 'inline';
+                        setTimeout(() => {
+                            saveStatus.style.display = 'none';
+                        }, 3000);
+                    }
+
+                    // 更新全局保存状态
+                    const lastSaveTime = document.getElementById('last-save-time');
+                    if (lastSaveTime) {
+                        const now = new Date();
+                        lastSaveTime.textContent = '上次保存: ' + now.toLocaleTimeString();
+                    }
+                } else {
+                    alert('请先选择一道题目！');
+                }
+            });
+        }
     }
 
     // 加载题目函数
     function loadQuestion(questionId) {
+        // 保存当前题目答案（如果有）
+        if (currentQuestionId) {
+            // 根据当前题目类型决定如何保存
+            const questionTypeElement = document.getElementById('question-type-badge');
+            if (questionTypeElement) {
+                const questionType = questionTypeElement.textContent.trim();
+
+                if (questionType === '选择题') {
+                    saveChoiceAnswer();
+                } else {
+                    saveAnswer();
+                }
+            }
+        }
+
+
         // 发起请求获取题目详情
         fetch(`/exams/student/get_question/${examId}/${questionId}`)
             .then(response => {
@@ -175,11 +224,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const textarea = document.getElementById('answer_content');
         textarea.value = '';
 
-        // 如果是编程题且有模板，填充模板
-        if(question.question_type === 'programming' && question.answer_template) {
-            textarea.value = question.answer_template;
-        }
-
         // 显示保存按钮
         document.getElementById('save-answer-btn').style.display = 'block';
         document.getElementById('save-status').style.display = 'none';
@@ -200,7 +244,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.error('解析已保存的选择题答案失败:', e);
             }
         } else {
-            document.getElementById('answer_content').value = question.saved_answer;
+            // 对于填空题和编程题
+            const textarea = document.getElementById('answer_content');
+            if (question.saved_answer && question.saved_answer.trim() !== '') {
+                // 如果有已保存的答案，使用它
+                textarea.value = question.saved_answer;
+            }
+
         }
     }
 
@@ -218,15 +268,15 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // 保存填空题或编程题答案
-    function saveAnswer() {
+    function saveAnswer(callback) {
         const questionId = currentQuestionId;
         const answerContent = document.getElementById('answer_content').value;
 
-        saveAnswerToServer(questionId, answerContent);
+        saveAnswerToServer(questionId, answerContent, callback);
     }
 
     // 向服务器保存答案
-    function saveAnswerToServer(questionId, answerContent) {
+    function saveAnswerToServer(questionId, answerContent, callback) {
         // 调试信息
         console.log('发送答案数据:', {
             score_id: scoreId,
@@ -266,9 +316,23 @@ document.addEventListener('DOMContentLoaded', function() {
                     saveStatus.style.display = 'none';
                 }, 3000);
 
+                // 更新全局保存状态
+                const lastSaveTime = document.getElementById('last-save-time');
+                if (lastSaveTime) {
+                    lastSaveTime.textContent = '上次保存: ' + data.saved_at;
+                }
+
                 // 更新题目状态
                 questionStatus[questionId] = true;
                 updateQuestionNavStatus(questionId, true);
+
+                // 标记为已保存
+                if (window.markSaved) window.markSaved();
+
+                // 执行回调函数
+                if (typeof callback === 'function') {
+                    callback(data);
+                }
             } else {
                 console.error('保存失败:', data);
                 alert('保存答案失败: ' + (data.message || '未知错误'));
@@ -353,4 +417,76 @@ document.addEventListener('DOMContentLoaded', function() {
         const question = examQuestions.find(q => q.id === id);
         return question ? question.order : '?';
     }
+
+    // 设置自动保存
+    function setupAutoSave() {
+        // 添加文本区域输入事件监听器
+        const textarea = document.getElementById('answer_content');
+        if (textarea) {
+            textarea.addEventListener('input', function() {
+                // 标记为未保存状态
+                if (window.markUnsaved) window.markUnsaved();
+
+                // 使用防抖进行自动保存
+                if (window.autoSaveDebounce) clearTimeout(window.autoSaveDebounce);
+                window.autoSaveDebounce = setTimeout(function() {
+                    if (currentQuestionId) {
+                        saveAnswer();
+                        console.log('自动保存填空/编程题答案');
+                    }
+                }, 2000); // 输入后2秒保存
+            });
+        }
+
+        // 更新保存状态显示
+        document.getElementById('save-status-indicator').textContent = '自动保存: 已启用';
+    }
+
+    // 获取当前题目的答案数据
+    window.getCurrentQuestionData = function() {
+        if (!currentQuestionId) return null;
+
+        let answerContent = '';
+
+        // 根据题目类型获取答案内容
+        const questionTypeElement = document.getElementById('question-type-badge');
+        if (!questionTypeElement) return null;
+
+        const questionType = questionTypeElement.textContent.trim();
+
+        if (questionType === '选择题') {
+            // 获取选中的选项ID
+            const selectedOptions = [];
+            document.querySelectorAll('.option-checkbox:checked').forEach(checkbox => {
+                selectedOptions.push(parseInt(checkbox.value));
+            });
+            answerContent = JSON.stringify(selectedOptions);
+        } else {
+            // 填空题或编程题
+            const textarea = document.getElementById('answer_content');
+            if (textarea) {
+                answerContent = textarea.value;
+            }
+        }
+
+        return {
+            score_id: scoreId,
+            question_id: currentQuestionId,
+            answer_content: answerContent
+        };
+    };
+
+    // 添加文本区域输入事件监听器
+    document.addEventListener('input', function(event) {
+        if (event.target.id === 'answer_content') {
+            // 使用防抖进行自动保存
+            if (window.autoSaveDebounce) clearTimeout(window.autoSaveDebounce);
+            window.autoSaveDebounce = setTimeout(function() {
+                if (currentQuestionId) {
+                    saveAnswer();
+                    console.log('自动保存填空/编程题答案');
+                }
+            }, 2000); // 输入后2秒保存
+        }
+    });
 });

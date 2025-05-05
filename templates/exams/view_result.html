@@ -134,10 +134,14 @@
                                     <h6 class="font-weight-bold">您的答案:</h6>
                                     {% if qa.question.question_type == 'choice' %}
                                         {% if qa.answer %}
+                                            <!-- 调试信息 -->
+                                            <!-- <div style="background-color: #f8f9fa; padding: 5px; margin-bottom: 10px; border-radius: 5px;">
+                                                <small>原始答案数据: {{ qa.answer.answer_content }}</small>
+                                            </div> -->
                                             {% set student_options = qa.answer.answer_content|safe|json_decode %}
                                             <ul>
                                                 {% for option in qa.question.options %}
-                                                    {% if option.id|string in student_options %}
+                                                    {% if option.id|string in student_options or option.id in student_options %}
                                                         <li>{{ option.content }}</li>
                                                     {% endif %}
                                                 {% endfor %}
@@ -167,6 +171,10 @@
                                 <div class="standard-answer mb-3">
                                     <h6 class="font-weight-bold">标准答案:</h6>
                                     {% if qa.question.question_type == 'choice' %}
+                                        <!-- 调试信息 -->
+                                        <div style="background-color: #f8f9fa; padding: 5px; margin-bottom: 10px; border-radius: 5px;">
+                                            <small>正确选项数量: {{ qa.question.correct_options|length }}</small>
+                                        </div>
                                         <ul>
                                             {% for option in qa.question.correct_options %}
                                                 <li>{{ option.content }}</li>
