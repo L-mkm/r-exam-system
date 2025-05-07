@@ -18,6 +18,12 @@ class ExamForm(FlaskForm):
                              default=lambda: datetime.now() + timedelta(hours=3),
                              format='%Y-%m-%dT%H:%M')
 
+    # 新增：考试时长（分钟）
+    duration = IntegerField('考试时长（分钟）', validators=[Optional(), NumberRange(min=10)], default=120)
+
+    # 新增：是否使用时长而不是结束时间
+    use_duration = BooleanField('使用考试时长', default=False)
+
     total_score = FloatField('总分值', validators=[NumberRange(min=1)], default=100.0)
     is_published = BooleanField('立即发布', default=False)
 

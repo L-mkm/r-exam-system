@@ -1,4 +1,4 @@
-from flask import render_template, request, redirect, url_for, flash, current_app
+from flask import render_template, request, redirect, url_for, flash, current_app, jsonify
 from flask_login import current_user, login_required
 from sqlalchemy import and_, or_
 from sqlalchemy.sql.expression import func
@@ -10,7 +10,7 @@ from models.question import Question
 from models.category import Category
 from forms.exam import ExamForm
 import random
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 @exams_bp.route('/')
@@ -58,7 +58,7 @@ def create():
             description=form.description.data,
             start_time=form.start_time.data,
             end_time=form.end_time.data,
-            total_score=form.total_score.data,
+            total_score=0,  # 先设为0，后面再更新
             is_published=form.is_published.data,
             creator_id=current_user.id
         )
@@ -66,51 +66,98 @@ def create():
         db.session.add(exam)
         db.session.commit()
 
-        # 如果启用随机抽题
-        if form.use_random_questions.data:
-            # 抽取选择题
-            if form.choice_count.data > 0:
-                choice_questions = get_random_questions(
-                    question_type='choice',
-                    count=form.choice_count.data,
-                    difficulty_min=form.choice_difficulty_min.data,
-                    difficulty_max=form.choice_difficulty_max.data,
-                    category_id=form.category_id.data if form.category_id.data > 0 else None,
-                    score=form.choice_score.data
-                )
-                add_questions_to_exam(exam, choice_questions, form.choice_score.data)
-
-            # 抽取填空题
-            if form.fill_blank_count.data > 0:
-                fill_blank_questions = get_random_questions(
-                    question_type='fill_blank',
-                    count=form.fill_blank_count.data,
-                    difficulty_min=form.fill_blank_difficulty_min.data,
-                    difficulty_max=form.fill_blank_difficulty_max.data,
-                    category_id=form.category_id.data if form.category_id.data > 0 else None,
-                    score=form.fill_blank_score.data
-                )
-                add_questions_to_exam(exam, fill_blank_questions, form.fill_blank_score.data)
-
-            # 抽取编程题
-            if form.programming_count.data > 0:
-                programming_questions = get_random_questions(
-                    question_type='programming',
-                    count=form.programming_count.data,
-                    difficulty_min=form.programming_difficulty_min.data,
-                    difficulty_max=form.programming_difficulty_max.data,
-                    category_id=form.category_id.data if form.category_id.data > 0 else None,
-                    score=form.programming_score.data
-                )
-                add_questions_to_exam(exam, programming_questions, form.programming_score.data)
-
-            # 更新考试总分
-            update_exam_total_score(exam)
-
         flash('考试创建成功！', 'success')
-        return redirect(url_for('exams.edit', id=exam.id))
+        return redirect(url_for('exams.manage_questions', id=exam.id))
 
     return render_template('exams/create.html', form=form)
+
+
+@exams_bp.route('/save_draft', methods=['POST'])
+@login_required
+def save_draft():
+    """保存考试草稿"""
+    # 检查权限
+    if not (current_user.is_admin() or current_user.is_teacher()):
+        return jsonify({'success': False, 'message': '您没有权限操作'}), 403
+
+    # 获取表单数据
+    data = request.get_json()
+
+    if not data:
+        return jsonify({'success': False, 'message': '未接收到数据'})
+
+    try:
+        # 创建或更新草稿
+        if data.get('exam_id'):
+            # 更新现有考试
+            try:
+                exam_id = int(data.get('exam_id'))
+                exam = Exam.query.get(exam_id)
+                if not exam:
+                    return jsonify({'success': False, 'message': f'未找到ID为{exam_id}的考试'})
+
+                # 权限检查
+                if not current_user.is_admin() and exam.creator_id != current_user.id:
+                    return jsonify({'success': False, 'message': '无权修改此考试'})
+            except (TypeError, ValueError):
+                return jsonify({'success': False, 'message': '无效的考试ID'})
+        else:
+            # 创建新考试
+            exam = Exam(creator_id=current_user.id)
+            db.session.add(exam)
+
+        # 更新考试属性
+        if 'title' in data:
+            exam.title = data.get('title') or '未命名考试'
+
+        if 'description' in data:
+            exam.description = data.get('description', '')
+
+        # 处理时间数据
+        start_time_str = data.get('start_time')
+        end_time_str = data.get('end_time')
+
+        try:
+            if start_time_str:
+                exam.start_time = datetime.strptime(start_time_str, '%Y-%m-%dT%H:%M')
+            else:
+                # 默认开始时间为当前时间后1小时
+                exam.start_time = datetime.now() + timedelta(hours=1)
+
+            if end_time_str:
+                exam.end_time = datetime.strptime(end_time_str, '%Y-%m-%dT%H:%M')
+            else:
+                # 默认结束时间为开始时间后2小时
+                exam.end_time = exam.start_time + timedelta(hours=2)
+
+        except ValueError as e:
+            return jsonify({'success': False, 'message': f'日期格式错误: {str(e)}'})
+
+        # 检查开始时间必须早于结束时间
+        if exam.start_time >= exam.end_time:
+            return jsonify({'success': False, 'message': '开始时间必须早于结束时间'})
+
+        # 处理是否发布状态
+        if 'is_published' in data:
+            exam.is_published = data.get('is_published', False)
+
+        # 提交到数据库
+        db.session.commit()
+
+        # 返回成功响应
+        return jsonify({
+            'success': True,
+            'exam_id': exam.id,
+            'message': '草稿已保存',
+            'saved_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        })
+
+    except Exception as e:
+        # 出错时回滚事务
+        db.session.rollback()
+        import traceback
+        traceback.print_exc()  # 打印错误堆栈便于调试
+        return jsonify({'success': False, 'message': f'保存失败: {str(e)}'})
 
 
 @exams_bp.route('/<int:id>')
@@ -183,25 +230,361 @@ def manage_questions(id):
     # 获取已添加到考试的题目
     exam_questions = ExamQuestion.query.filter_by(exam_id=exam.id).order_by(ExamQuestion.order).all()
 
-    # 获取可以添加的题目
-    # 这里只显示一部分题目，实际应用中可能需要分页和搜索功能
+    # 获取可以添加的题目（首页只显示部分，其余通过AJAX加载）
     if current_user.is_admin():
         available_questions = Question.query.filter(
-            ~Question.id.in_([eq.question_id for eq in exam_questions])
-        ).limit(20).all()
+            ~Question.id.in_([eq.question_id for eq in exam_questions]) if exam_questions else True
+        ).order_by(Question.created_at.desc()).limit(20).all()
     else:
         available_questions = Question.query.filter(
-            ~Question.id.in_([eq.question_id for eq in exam_questions]),
+            ~Question.id.in_([eq.question_id for eq in exam_questions]) if exam_questions else True,
             or_(
                 Question.creator_id == current_user.id,
                 Question.is_public == True
             )
-        ).limit(20).all()
+        ).order_by(Question.created_at.desc()).limit(20).all()
+
+        # 获取所有分类
+        categories = Category.query.order_by(Category.name).all()
 
     return render_template('exams/manage_questions.html',
                            exam=exam,
                            exam_questions=exam_questions,
-                           available_questions=available_questions)
+                           available_questions=available_questions,
+                           categories=categories)
+
+
+
+@exams_bp.route('/<int:id>/preview_random_questions', methods=['POST'])
+@login_required
+def preview_random_questions(id):
+    """预览随机抽题"""
+    exam = Exam.query.get_or_404(id)
+
+    # 权限检查
+    if not (current_user.is_admin() or exam.creator_id == current_user.id):
+        return jsonify({'success': False, 'message': '无权限操作'}), 403
+
+    # 获取请求数据
+    data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'message': '无效的请求数据'}), 400
+
+    # 统计可用题目数量
+    choice_count, fill_blank_count, programming_count = count_available_questions(
+        data.get('category_id'),
+        data.get('choice_difficulty_min'), data.get('choice_difficulty_max'),
+        data.get('fill_blank_difficulty_min'), data.get('fill_blank_difficulty_max'),
+        data.get('programming_difficulty_min'), data.get('programming_difficulty_max')
+    )
+
+    # 计算实际可抽取数量
+    actual_choice_count = min(choice_count, data.get('choice_count', 0))
+    actual_fill_blank_count = min(fill_blank_count, data.get('fill_blank_count', 0))
+    actual_programming_count = min(programming_count, data.get('programming_count', 0))
+
+    # 计算总分值
+    total_score = (
+            actual_choice_count * (data.get('choice_score', 0)) +
+            actual_fill_blank_count * (data.get('fill_blank_score', 0)) +
+            actual_programming_count * (data.get('programming_score', 0))
+    )
+
+    return jsonify({
+        'success': True,
+        'choice_count': actual_choice_count,
+        'fill_blank_count': actual_fill_blank_count,
+        'programming_count': actual_programming_count,
+        'total_count': actual_choice_count + actual_fill_blank_count + actual_programming_count,
+        'total_score': total_score
+    })
+
+
+@exams_bp.route('/<int:id>/apply_random_questions', methods=['POST'])
+@login_required
+def apply_random_questions(id):
+    """应用随机抽题"""
+    exam = Exam.query.get_or_404(id)
+
+    # 权限检查
+    if not (current_user.is_admin() or exam.creator_id == current_user.id):
+        return jsonify({'success': False, 'message': '无权限操作'}), 403
+
+    # 获取请求数据
+    data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'message': '无效的请求数据'}), 400
+
+    try:
+        # 开始数据库事务
+        db.session.begin_nested()
+
+        # 删除现有题目
+        ExamQuestion.query.filter_by(exam_id=id).delete()
+
+        # 抽取选择题
+        choice_questions = []
+        if data.get('choice_count', 0) > 0:
+            choice_questions = get_random_questions(
+                question_type='choice',
+                count=data.get('choice_count', 0),
+                difficulty_min=data.get('choice_difficulty_min', 0),
+                difficulty_max=data.get('choice_difficulty_max', 0),
+                category_id=data.get('category_id') if int(data.get('category_id', 0)) > 0 else None,
+                score=data.get('choice_score', 0)
+            )
+            add_questions_to_exam(exam, choice_questions, data.get('choice_score', 0))
+
+        # 抽取填空题
+        fill_blank_questions = []
+        if data.get('fill_blank_count', 0) > 0:
+            fill_blank_questions = get_random_questions(
+                question_type='fill_blank',
+                count=data.get('fill_blank_count', 0),
+                difficulty_min=data.get('fill_blank_difficulty_min', 0),
+                difficulty_max=data.get('fill_blank_difficulty_max', 0),
+                category_id=data.get('category_id') if int(data.get('category_id', 0)) > 0 else None,
+                score=data.get('fill_blank_score', 0)
+            )
+            add_questions_to_exam(exam, fill_blank_questions, data.get('fill_blank_score', 0))
+
+        # 抽取编程题
+        programming_questions = []
+        if data.get('programming_count', 0) > 0:
+            programming_questions = get_random_questions(
+                question_type='programming',
+                count=data.get('programming_count', 0),
+                difficulty_min=data.get('programming_difficulty_min', 0),
+                difficulty_max=data.get('programming_difficulty_max', 0),
+                category_id=data.get('category_id') if int(data.get('category_id', 0)) > 0 else None,
+                score=data.get('programming_score', 0)
+            )
+            add_questions_to_exam(exam, programming_questions, data.get('programming_score', 0))
+
+        # 更新考试总分
+        update_exam_total_score(exam)
+
+        # 提交事务
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'choice_count': len(choice_questions),
+            'fill_blank_count': len(fill_blank_questions),
+            'programming_count': len(programming_questions),
+            'total_count': len(choice_questions) + len(fill_blank_questions) + len(programming_questions),
+            'total_score': exam.total_score
+        })
+
+    except Exception as e:
+        # 回滚事务
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@exams_bp.route('/<int:id>/batch_add_questions', methods=['POST'])
+@login_required
+def batch_add_questions(id):
+    """批量添加题目"""
+    exam = Exam.query.get_or_404(id)
+
+    # 权限检查
+    if not (current_user.is_admin() or exam.creator_id == current_user.id):
+        return jsonify({'success': False, 'message': '无权限操作'}), 403
+
+    # 获取请求数据
+    data = request.get_json()
+    if not data or 'question_ids' not in data:
+        return jsonify({'success': False, 'message': '无效的请求数据'}), 400
+
+    question_ids = data['question_ids']
+    if not question_ids:
+        return jsonify({'success': False, 'message': '未选择题目'}), 400
+
+    try:
+        # 获取当前最大顺序号
+        max_order = db.session.query(db.func.max(ExamQuestion.order)).filter_by(exam_id=id).scalar() or 0
+
+        # 添加题目
+        added_count = 0
+        for i, question_id in enumerate(question_ids):
+            question = Question.query.get(question_id)
+            if not question:
+                continue
+
+            # 检查题目是否已在考试中
+            existing = ExamQuestion.query.filter_by(exam_id=id, question_id=question_id).first()
+            if existing:
+                continue
+
+            # 添加题目
+            exam_question = ExamQuestion(
+                exam_id=id,
+                question_id=question_id,
+                order=max_order + i + 1,
+                score=question.score_default
+            )
+            db.session.add(exam_question)
+            added_count += 1
+
+        # 更新考试总分
+        if added_count > 0:
+            db.session.commit()
+            update_exam_total_score(exam)
+
+        return jsonify({
+            'success': True,
+            'added_count': added_count,
+            'message': f'成功添加 {added_count} 道题目'
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@exams_bp.route('/<int:id>/batch_remove_questions', methods=['POST'])
+@login_required
+def batch_remove_questions(id):
+    """批量移除题目"""
+    exam = Exam.query.get_or_404(id)
+
+    # 权限检查
+    if not (current_user.is_admin() or exam.creator_id == current_user.id):
+        return jsonify({'success': False, 'message': '无权限操作'}), 403
+
+    # 获取请求数据
+    data = request.get_json()
+    if not data or 'question_ids' not in data:
+        return jsonify({'success': False, 'message': '无效的请求数据'}), 400
+
+    question_ids = data['question_ids']
+    if not question_ids:
+        return jsonify({'success': False, 'message': '未选择题目'}), 400
+
+    try:
+        # 删除题目
+        removed_count = 0
+        for question_id in question_ids:
+            exam_question = ExamQuestion.query.filter_by(exam_id=id, question_id=question_id).first()
+            if exam_question:
+                db.session.delete(exam_question)
+                removed_count += 1
+
+        # 更新考试总分
+        if removed_count > 0:
+            db.session.commit()
+
+            # 重新排序剩余题目
+            remaining_questions = ExamQuestion.query.filter_by(exam_id=id).order_by(ExamQuestion.order).all()
+            for i, eq in enumerate(remaining_questions, 1):
+                eq.order = i
+            db.session.commit()
+
+            update_exam_total_score(exam)
+
+        return jsonify({
+            'success': True,
+            'removed_count': removed_count,
+            'message': f'成功移除 {removed_count} 道题目'
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@exams_bp.route('/<int:id>/available_questions')
+@login_required
+def available_questions(id):
+    """获取可用题目列表（带分页和筛选）"""
+    exam = Exam.query.get_or_404(id)
+
+    # 权限检查
+    if not (current_user.is_admin() or exam.creator_id == current_user.id):
+        return jsonify({'success': False, 'message': '无权限操作'}), 403
+
+    # 获取分页和筛选参数
+    page = request.args.get('page', 1, type=int)
+    limit = request.args.get('limit', 20, type=int)
+    search = request.args.get('search', '')
+    question_type = request.args.get('type', '')
+    difficulty = request.args.get('difficulty', 0, type=int)
+    category_id = request.args.get('category', 0, type=int)
+
+    # 构建查询
+    query = Question.query
+
+    # 排除已添加到考试的题目
+    existing_question_ids = [eq.question_id for eq in ExamQuestion.query.filter_by(exam_id=id).all()]
+    if existing_question_ids:
+        query = query.filter(~Question.id.in_(existing_question_ids))
+
+    # 应用筛选条件
+    if search:
+        query = query.filter(Question.title.like(f'%{search}%'))
+
+    if question_type:
+        query = query.filter(Question.question_type == question_type)
+
+    if difficulty > 0:
+        query = query.filter(Question.difficulty == difficulty)
+
+    if category_id > 0:
+        query = query.filter(Question.category_id == category_id)
+
+    # 非管理员只能看到自己创建的和公开的题目
+    if not current_user.is_admin():
+        query = query.filter(or_(
+            Question.creator_id == current_user.id,
+            Question.is_public == True
+        ))
+
+    # 分页
+    questions = query.order_by(Question.created_at.desc()).paginate(page=page, per_page=limit, error_out=False)
+
+    # 格式化结果
+    return jsonify({
+        'success': True,
+        'questions': [
+            {
+                'id': q.id,
+                'title': q.title,
+                'question_type': q.question_type,
+                'difficulty': q.difficulty,
+                'score_default': q.score_default,
+                'category_id': q.category_id
+            }
+            for q in questions.items
+        ],
+        'total': questions.total,
+        'pages': questions.pages,
+        'page': page
+    })
+
+
+@exams_bp.route('/<int:id>/save_all', methods=['POST'])
+@login_required
+def save_all(id):
+    """保存所有更改"""
+    exam = Exam.query.get_or_404(id)
+
+    # 权限检查
+    if not (current_user.is_admin() or exam.creator_id == current_user.id):
+        return jsonify({'success': False, 'message': '无权限操作'}), 403
+
+    try:
+        # 更新考试总分
+        update_exam_total_score(exam)
+
+        return jsonify({
+            'success': True,
+            'message': '所有更改已保存',
+            'redirect': url_for('exams.view', id=id)
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 
 @exams_bp.route('/<int:id>/add_question/<int:question_id>', methods=['POST'])
@@ -239,8 +622,16 @@ def add_question(id, question_id):
     # 更新考试总分
     update_exam_total_score(exam)
 
-    flash('题目已添加到考试', 'success')
-    return redirect(url_for('exams.manage_questions', id=id))
+    # 返回更多有用信息
+    return jsonify({
+        'success': True,
+        'message': '题目已添加到考试',
+        'exam_question': {
+            'id': exam_question.id,
+            'order': exam_question.order,
+            'score': exam_question.score
+        }
+    })
 
 
 @exams_bp.route('/<int:id>/remove_question/<int:question_id>', methods=['POST'])
@@ -283,22 +674,28 @@ def update_question_score(id, question_id):
         flash('您没有权限修改此考试', 'danger')
         return redirect(url_for('exams.index'))
 
-    # 获取新分值
-    new_score = request.form.get('score', type=float)
+    # 获取新分值(从JSON)
+    data = request.get_json()
+    if not data or 'score' not in data:
+        return jsonify({'success': False, 'message': '未收到有效的分值数据'}), 400
+
+    new_score = float(data.get('score', 0))
     if not new_score or new_score <= 0:
-        flash('请输入有效的分值', 'danger')
-        return redirect(url_for('exams.manage_questions', id=id))
+        return jsonify({'success': False, 'message': '请输入有效的分值'}), 400
 
-    # 更新分值
-    exam_question = ExamQuestion.query.filter_by(exam_id=id, question_id=question_id).first_or_404()
-    exam_question.score = new_score
-    db.session.commit()
+    try:
+        # 更新分值
+        exam_question = ExamQuestion.query.filter_by(exam_id=id, question_id=question_id).first_or_404()
+        exam_question.score = new_score
+        db.session.commit()
 
-    # 更新考试总分
-    update_exam_total_score(exam)
+        # 更新考试总分
+        update_exam_total_score(exam)
 
-    flash('题目分值已更新', 'success')
-    return redirect(url_for('exams.manage_questions', id=id))
+        return jsonify({'success': True, 'message': '题目分值已更新'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 
 @exams_bp.route('/<int:id>/reorder_questions', methods=['POST'])
@@ -430,3 +827,41 @@ def update_exam_total_score(exam):
 
     exam.total_score = total_score
     db.session.commit()
+
+# +辅助函数
+def count_available_questions(category_id=None,
+                              choice_difficulty_min=0, choice_difficulty_max=0,
+                              fill_blank_difficulty_min=0, fill_blank_difficulty_max=0,
+                              programming_difficulty_min=0, programming_difficulty_max=0):
+    """统计可用题目数量"""
+    # 选择题查询
+    choice_query = Question.query.filter_by(question_type='choice')
+    if category_id and int(category_id) > 0:
+        choice_query = choice_query.filter_by(category_id=int(category_id))
+    if choice_difficulty_min > 0:
+        choice_query = choice_query.filter(Question.difficulty >= choice_difficulty_min)
+    if choice_difficulty_max > 0:
+        choice_query = choice_query.filter(Question.difficulty <= choice_difficulty_max)
+    choice_count = choice_query.count()
+
+    # 填空题查询
+    fill_blank_query = Question.query.filter_by(question_type='fill_blank')
+    if category_id and int(category_id) > 0:
+        fill_blank_query = fill_blank_query.filter_by(category_id=int(category_id))
+    if fill_blank_difficulty_min > 0:
+        fill_blank_query = fill_blank_query.filter(Question.difficulty >= fill_blank_difficulty_min)
+    if fill_blank_difficulty_max > 0:
+        fill_blank_query = fill_blank_query.filter(Question.difficulty <= fill_blank_difficulty_max)
+    fill_blank_count = fill_blank_query.count()
+
+    # 编程题查询
+    programming_query = Question.query.filter_by(question_type='programming')
+    if category_id and int(category_id) > 0:
+        programming_query = programming_query.filter_by(category_id=int(category_id))
+    if programming_difficulty_min > 0:
+        programming_query = programming_query.filter(Question.difficulty >= programming_difficulty_min)
+    if programming_difficulty_max > 0:
+        programming_query = programming_query.filter(Question.difficulty <= programming_difficulty_max)
+    programming_count = programming_query.count()
+
+    return choice_count, fill_blank_count, programming_count
