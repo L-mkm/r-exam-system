@@ -214,25 +214,74 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
 
+        // 取消按钮
         if (cancelBtn) {
             cancelBtn.addEventListener('click', function() {
                 if (hasUnsavedChanges) {
                     const cancelModal = new bootstrap.Modal(document.getElementById('cancelConfirmModal'));
                     cancelModal.show();
                 } else {
-                    window.location.href = `/exams/${EXAM_ID}/create`;
+                    // 无更改时直接返回
+                    redirectBasedOnStatus();
                 }
             });
         }
 
-// 返回编辑页面按钮
+        // 确认放弃按钮点击事件
+        const confirmDiscardBtn = document.getElementById('confirm_discard_btn');
+        if (confirmDiscardBtn) {
+            confirmDiscardBtn.addEventListener('click', function() {
+                console.log("确认放弃更改按钮点击");
+
+                // 禁用自动保存
+                window.disableAutoSave = true;
+                hasUnsavedChanges = false;
+
+                // 重新加载页面，放弃所有未保存的更改
+                window.location.reload();
+            });
+        }
+
+        // 根据考试状态重定向
+        function redirectBasedOnStatus() {
+            fetch(`/exams/${EXAM_ID}/check_status`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.is_draft) {
+                        window.location.replace(`/exams/${EXAM_ID}/continue_create`);
+                    } else {
+                        window.location.replace(`/exams/${EXAM_ID}/edit`);
+                    }
+                })
+                .catch(error => {
+                    console.error('获取考试状态失败:', error);
+                    window.location.replace(`/exams/${EXAM_ID}/edit`);
+                });
+        }
+
+        // 修改返回按钮
         if (backBtn) {
+            backBtn.textContent = '返回考试设置'; // 更改按钮文本以更清晰
             backBtn.addEventListener('click', function() {
                 if (hasUnsavedChanges) {
                     const cancelModal = new bootstrap.Modal(document.getElementById('cancelConfirmModal'));
                     cancelModal.show();
                 } else {
-                    window.location.href = `/exams/${EXAM_ID}/create`;
+                    // 检查考试状态决定返回的页面
+                    fetch(`/exams/${EXAM_ID}/check_status`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.is_draft) {
+                                window.location.href = `/exams/${EXAM_ID}/continue_create`;
+                            } else {
+                                window.location.href = `/exams/${EXAM_ID}/edit`;
+                            }
+                        })
+                        .catch(error => {
+                            console.error('获取考试状态失败:', error);
+                            // 默认返回编辑页面
+                            window.location.href = `/exams/${EXAM_ID}/edit`;
+                        });
                 }
             });
         }
@@ -996,10 +1045,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 showSaveStatus('所有更改已保存');
 
-                // 修改为跳转到创建页面
-                setTimeout(() => {
-                    window.location.href = `/exams/create`;
-                }, 1000);
+                // 使用服务器返回的重定向URL
+                if (data.redirect) {
+                    setTimeout(() => {
+                        window.location.href = data.redirect;
+                    }, 1000);
+                }
             } else {
                 console.error('保存失败:', data.message);
                 alert('保存失败: ' + data.message);

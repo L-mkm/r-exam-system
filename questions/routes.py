@@ -344,3 +344,58 @@ def tag_list():
 
     tags = Tag.query.order_by(Tag.name).all()
     return render_template('questions/tags.html', tags=tags)
+
+
+@questions_bp.route('/api/detail/<int:id>')
+@login_required
+def question_detail_api(id):
+    """题目详情API"""
+    question = Question.query.get_or_404(id)
+
+    # 权限检查 - 确保用户有权查看此题目
+    if not (current_user.is_admin() or current_user.is_teacher() or question.creator_id == current_user.id):
+        # 非管理员、教师或创建者，需要检查题目是否在用户可见范围内
+        if current_user.is_student():
+            # 学生只能查看与其关联的考试中的题目
+            is_authorized = question.exam_list.filter(
+                Exam.id.in_([score.exam_id for score in current_user.scores])
+            ).count() > 0
+
+            if not is_authorized:
+                return jsonify({'success': False, 'message': '您没有权限查看此题目'}), 403
+
+    # 构建响应数据
+    response_data = {
+        'success': True,
+        'question': {
+            'id': question.id,
+            'title': question.title,
+            'content': question.content,
+            'question_type': question.question_type,
+            'difficulty': question.difficulty,
+            'score_default': question.score_default,
+            'category_id': question.category_id,
+            'category_name': question.category.name if question.category else '',
+            'answer_template': question.answer_template,
+            'standard_answer': question.standard_answer,
+            'explanation': question.explanation,
+            'created_at': question.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+            'updated_at': question.updated_at.strftime('%Y-%m-%d %H:%M:%S')
+        }
+    }
+
+    # 如果是选择题，添加选项
+    if question.is_choice():
+        response_data['options'] = []
+        for option in question.options.order_by(QuestionOption.order).all():
+            response_data['options'].append({
+                'id': option.id,
+                'content': option.content,
+                'is_correct': option.is_correct,
+                'order': option.order
+            })
+
+    # 添加标签
+    response_data['tags'] = [{'id': tag.id, 'name': tag.name} for tag in question.tags]
+
+    return jsonify(response_data)

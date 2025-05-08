@@ -1,12 +1,13 @@
 {% extends "base.html" %}
 
-{% block title %}创建新考试{% endblock %}
+{% block title %}继续创建考试{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
-    <h1>创建新考试</h1>
+    <h1>继续创建考试</h1>
     <form method="post" id="examForm">
         {{ form.csrf_token }}
+        <input type="hidden" name="exam_id" value="{{ exam.id }}">
 
         <!-- 分为三个主要区域 -->
         <div class="card mb-4">
@@ -58,21 +59,23 @@
                     <!-- 新增：考试时长选项 -->
                     <div class="col-md-4">
                         <div class="form-check mt-4">
-                            <input class="form-check-input" type="checkbox" id="use_duration" name="use_duration">
+                            <input class="form-check-input" type="checkbox" id="use_duration" name="use_duration"
+                                  {% if exam.has_duration %}checked{% endif %}>
                             <label class="form-check-label" for="use_duration">
                                 使用考试时长
                             </label>
                         </div>
-                        <div id="duration_container" style="display: none;" class="mt-2">
+                        <div id="duration_container" style="{% if not exam.has_duration %}display: none;{% endif %}" class="mt-2">
                             <label for="exam_duration" class="form-label">考试时长（分钟）</label>
                             <input type="number" class="form-control" id="exam_duration" name="exam_duration"
-                                min="10" value="120">
+                                min="10" value="{{ exam.duration_minutes|default(120) }}">
                         </div>
                     </div>
 
                     <div class="col-md-4">
                         {{ form.end_time.label(class="form-label") }}
-                        {{ form.end_time(class="form-control", type="datetime-local", id="end_time") }}
+                        {{ form.end_time(class="form-control", type="datetime-local", id="end_time",
+                                         disabled=exam.has_duration) }}
                         {% if form.end_time.errors %}
                         <div class="text-danger">
                             {% for error in form.end_time.errors %}
@@ -101,10 +104,11 @@
                 <!-- 题目统计信息 -->
                 <div class="alert alert-info">
                     <div class="d-flex justify-content-between">
-                        <span>当前题目数量: <span id="question_count">0</span></span>
-                        <span>预计总分: <span id="total_score">0</span></span>
+                        <span>当前题目数量: <span id="question_count">{{ exam.questions|length }}</span></span>
+                        <span>预计总分: <span id="total_score">{{ exam.total_score }}</span></span>
                     </div>
-                    <div id="no_questions_warning" class="text-danger mt-2">
+                    <div id="no_questions_warning" class="text-danger mt-2"
+                         style="{% if exam.questions|length > 0 %}display: none;{% endif %}">
                         请添加题目
                     </div>
                 </div>
@@ -119,12 +123,12 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <button type="button" id="manage_questions_btn" class="btn btn-warning">管理题目</button>
+                        <a href="{{ url_for('exams.manage_questions', id=exam.id) }}" id="manage_questions_btn" class="btn btn-warning">管理题目</a>
                         <span id="save_status" class="text-success ms-2" style="display: none;">已自动保存草稿</span>
                     </div>
                     <div>
                         <button type="button" id="save_draft_btn" class="btn btn-secondary">保存草稿</button>
-                        <button type="button" id="create_exam_btn" class="btn btn-primary">创建考试</button>
+                        <button type="button" id="create_exam_btn" class="btn btn-primary">完成创建</button>
                         <a href="{{ url_for('exams.index') }}" id="cancel_btn" class="btn btn-outline-danger">取消</a>
                     </div>
                 </div>
@@ -137,7 +141,7 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">确认创建考试</h5>
+                    <h5 class="modal-title">确认完成创建</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
@@ -150,7 +154,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                    <button type="button" id="confirm_create_btn" class="btn btn-primary">确认创建</button>
+                    <button type="button" id="confirm_create_btn" class="btn btn-primary">确认完成</button>
                 </div>
             </div>
         </div>
@@ -178,12 +182,13 @@
 {% endblock %}
 
 {% block scripts %}
-<!-- 与take_exam.html类似的方式放置引用脚本 -->
+<!-- 传递变量到JS文件 -->
 <script>
-// 可以在这里定义全局变量传递到JS文件
+// 全局变量
 const CSRF_TOKEN = "{{ csrf_token() }}";
+const EXAM_ID = {{ exam.id }};
 </script>
 
-<!-- 引入外部JS文件 -->
-<script src="{{ url_for('static', filename='js/exam_create.js') }}"></script>
+<!-- 引入JS文件 -->
+<script src="{{ url_for('static', filename='js/exam_continue_create.js') }}"></script>
 {% endblock %}

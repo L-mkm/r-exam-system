@@ -1,4 +1,4 @@
-from flask import render_template, request, redirect, url_for, flash, current_app, jsonify
+from flask import render_template, request, redirect, url_for, flash, current_app, jsonify, session
 from flask_login import current_user, login_required
 from sqlalchemy import and_, or_
 from sqlalchemy.sql.expression import func
@@ -12,28 +12,135 @@ from forms.exam import ExamForm
 import random
 from datetime import datetime, timedelta
 
+# 关于session的备注：实在无法兼顾自动保存和取消返回上一次保存的功能，先记下
 
 @exams_bp.route('/')
 @login_required
 def index():
     """考试列表页面"""
-    # 检查权限 - 学生只能看到可参加的考试，教师可以看到自己创建的考试
+    # 获取筛选参数
+    search_keyword = request.args.get('search', '')
+    is_published = request.args.get('is_published', '')
+    status = request.args.get('status', '')
+    start_date = request.args.get('start_date', '')
+    end_date = request.args.get('end_date', '')
+
+    # 检查权限 - 基础查询
     if current_user.is_admin():
-        exams = Exam.query.order_by(Exam.created_at.desc()).all()
+        query = Exam.query
     elif current_user.is_teacher():
-        exams = Exam.query.filter_by(creator_id=current_user.id).order_by(Exam.created_at.desc()).all()
+        query = Exam.query.filter_by(creator_id=current_user.id)
     else:  # 学生
         # 只显示已发布且在考试时间范围内的考试
         now = datetime.utcnow()
-        exams = Exam.query.filter(
+        query = Exam.query.filter(
             Exam.is_published == True,
             Exam.start_time <= now,
             Exam.end_time >= now
-        ).order_by(Exam.start_time).all()
+        )
 
-    current_time = datetime.utcnow()
-    return render_template('exams/index.html', exams=exams, current_time=current_time)
+    # 应用搜索和筛选条件 (仅对管理员和教师应用)
+    if (current_user.is_admin() or current_user.is_teacher()):
+        if search_keyword:
+            query = query.filter(Exam.title.like(f'%{search_keyword}%'))
 
+        if is_published:
+            published = (is_published == 'true')
+            query = query.filter(Exam.is_published == published)
+
+        # 根据考试状态筛选
+        now = datetime.utcnow()
+        if status == 'not_started':
+            query = query.filter(Exam.start_time > now)
+        elif status == 'in_progress':
+            query = query.filter(Exam.start_time <= now, Exam.end_time >= now)
+        elif status == 'ended':
+            query = query.filter(Exam.end_time < now)
+
+        # 根据创建时间筛选
+        if start_date:
+            try:
+                start_date_obj = datetime.strptime(start_date, '%Y-%m-%d')
+                query = query.filter(Exam.created_at >= start_date_obj)
+            except ValueError:
+                pass
+
+        if end_date:
+            try:
+                end_date_obj = datetime.strptime(end_date, '%Y-%m-%d')
+                # 添加一天，使其包含结束日期当天
+                end_date_obj = end_date_obj + timedelta(days=1)
+                query = query.filter(Exam.created_at < end_date_obj)
+            except ValueError:
+                pass
+
+    # 排序结果
+    exams = query.order_by(Exam.created_at.desc()).all()
+
+    return render_template('exams/index.html', exams=exams, get_now=datetime.utcnow)
+
+@exams_bp.route('/create_ajax', methods=['POST'])
+@login_required
+def create_ajax():
+    """创建新考试的AJAX处理"""
+    # 检查权限
+    if not (current_user.is_admin() or current_user.is_teacher()):
+        return jsonify({'success': False, 'message': '您没有权限创建考试'}), 403
+
+    # 获取请求数据
+    data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'message': '无效的请求数据'}), 400
+
+    try:
+        # 创建考试
+        exam = Exam(
+            title=data.get('title', '未命名考试'),
+            description=data.get('description', ''),
+            creator_id=current_user.id,
+            is_published=data.get('is_published', False),
+            is_draft=False  # 直接创建为非草稿状态
+        )
+
+        # 处理时间数据
+        try:
+            if data.get('start_time'):
+                exam.start_time = datetime.strptime(data.get('start_time'), '%Y-%m-%dT%H:%M')
+            else:
+                # 默认开始时间为当前时间后1小时
+                exam.start_time = datetime.now() + timedelta(hours=1)
+
+            if data.get('end_time'):
+                exam.end_time = datetime.strptime(data.get('end_time'), '%Y-%m-%dT%H:%M')
+            else:
+                # 默认结束时间为开始时间后2小时
+                exam.end_time = exam.start_time + timedelta(hours=2)
+        except ValueError as e:
+            return jsonify({'success': False, 'message': f'日期格式错误: {str(e)}'}), 400
+
+        # 处理考试时长选项
+        use_duration = data.get('use_duration', False)
+        exam.has_duration = use_duration
+        if use_duration:
+            try:
+                duration_minutes = int(data.get('exam_duration', 120))
+                exam.duration_minutes = duration_minutes
+            except (ValueError, TypeError):
+                exam.duration_minutes = 120
+
+        # 保存考试
+        db.session.add(exam)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'exam_id': exam.id,
+            'message': '考试创建成功'
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'创建失败: {str(e)}'}), 500
 
 @exams_bp.route('/create', methods=['GET', 'POST'])
 @login_required
@@ -60,16 +167,153 @@ def create():
             end_time=form.end_time.data,
             total_score=0,  # 先设为0，后面再更新
             is_published=form.is_published.data,
-            creator_id=current_user.id
+            creator_id=current_user.id,
+            is_draft=False  # 直接设为非草稿状态
         )
+
+        # 处理考试时长选项
+        use_duration = request.form.get('use_duration') == 'on'
+        exam.has_duration = use_duration
+        if use_duration:
+            try:
+                duration_minutes = int(request.form.get('exam_duration', 120))
+                exam.duration_minutes = duration_minutes
+            except (ValueError, TypeError):
+                exam.duration_minutes = 120
 
         db.session.add(exam)
         db.session.commit()
 
         flash('考试创建成功！', 'success')
-        return redirect(url_for('exams.manage_questions', id=exam.id))
+        # 直接跳转到考试详情页面
+        return redirect(url_for('exams.view', id=exam.id))
 
     return render_template('exams/create.html', form=form)
+
+
+@exams_bp.route('/<int:id>/continue_create', methods=['GET', 'POST'])
+@login_required
+def continue_create(id):
+    """继续创建草稿状态的考试"""
+    exam = Exam.query.get_or_404(id)
+
+    # 检查权限和状态
+    if not (current_user.is_admin() or exam.creator_id == current_user.id):
+        flash('您没有权限编辑此考试', 'danger')
+        return redirect(url_for('exams.index'))
+
+    if not exam.is_draft:
+        flash('此考试已不是草稿状态，无法继续创建流程', 'warning')
+        return redirect(url_for('exams.edit', id=exam.id))
+
+    form = ExamForm(obj=exam)
+
+    # 填充分类下拉列表
+    form.category_id.choices = [(0, '不限分类')] + [
+        (c.id, c.name) for c in Category.query.order_by(Category.name).all()
+    ]
+
+    if form.validate_on_submit():
+        # 更新考试信息
+        exam.title = form.title.data
+        exam.description = form.description.data
+        exam.start_time = form.start_time.data
+        exam.end_time = form.end_time.data
+
+        # 处理考试时长选项
+        use_duration = request.form.get('use_duration') == 'on'
+        exam.has_duration = use_duration
+        if use_duration:
+            try:
+                duration_minutes = int(request.form.get('exam_duration', 120))
+                exam.duration_minutes = duration_minutes
+            except (ValueError, TypeError):
+                exam.duration_minutes = 120
+
+        # 如果选择发布，则改变草稿状态
+        if form.is_published.data:
+            exam.is_draft = False
+            exam.is_published = True
+            flash('考试已从草稿状态发布！', 'success')
+        else:
+            exam.is_published = False
+            # 此处也将草稿状态改为false，表示完成创建
+            exam.is_draft = False
+
+        db.session.commit()
+
+        flash('考试创建已完成！', 'success')
+        # 无论如何，都跳转到考试详情页面
+        return redirect(url_for('exams.view', id=exam.id))
+
+    # 传递额外信息到模板
+    extra_data = {
+        'has_duration': getattr(exam, 'has_duration', False),
+        'duration_minutes': getattr(exam, 'duration_minutes', 120)
+    }
+
+    return render_template('exams/continue_create.html', form=form, exam=exam, **extra_data)
+
+
+@exams_bp.route('/complete_creation', methods=['POST'])
+@login_required
+def complete_creation():
+    """完成考试创建的AJAX处理"""
+    # 获取请求数据
+    data = request.get_json()
+    if not data or 'exam_id' not in data:
+        return jsonify({'success': False, 'message': '无效的请求数据'}), 400
+
+    try:
+        exam_id = int(data['exam_id'])
+        exam = Exam.query.get_or_404(exam_id)
+
+        # 权限检查
+        if not (current_user.is_admin() or exam.creator_id == current_user.id):
+            return jsonify({'success': False, 'message': '您没有权限修改此考试'}), 403
+
+        # 更新考试信息
+        exam.title = data.get('title', exam.title)
+        exam.description = data.get('description', exam.description)
+
+        # 处理时间数据
+        try:
+            if data.get('start_time'):
+                exam.start_time = datetime.strptime(data.get('start_time'), '%Y-%m-%dT%H:%M')
+
+            if data.get('end_time'):
+                exam.end_time = datetime.strptime(data.get('end_time'), '%Y-%m-%dT%H:%M')
+        except ValueError as e:
+            return jsonify({'success': False, 'message': f'日期格式错误: {str(e)}'}), 400
+
+        # 处理考试时长选项
+        use_duration = data.get('use_duration', False)
+        exam.has_duration = use_duration
+        if use_duration:
+            try:
+                duration_minutes = int(data.get('exam_duration', 120))
+                exam.duration_minutes = duration_minutes
+            except (ValueError, TypeError):
+                exam.duration_minutes = 120
+
+        # 更新发布状态
+        exam.is_published = data.get('is_published', exam.is_published)
+
+        # 将草稿状态设为False
+        exam.is_draft = False
+
+        # 保存更改
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'exam_id': exam.id,
+            'message': '考试创建完成'
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'完成创建失败: {str(e)}'}), 500
 
 
 @exams_bp.route('/save_draft', methods=['POST'])
@@ -141,6 +385,19 @@ def save_draft():
         if 'is_published' in data:
             exam.is_published = data.get('is_published', False)
 
+        # 处理考试时长选项
+        use_duration = data.get('use_duration', False)
+        exam.has_duration = use_duration
+        if use_duration:
+            try:
+                duration_minutes = int(data.get('exam_duration', 120))
+                exam.duration_minutes = duration_minutes
+            except (ValueError, TypeError):
+                exam.duration_minutes = 120
+
+        # 关键：强制设置为草稿状态，无论前端传入什么
+        exam.is_draft = True
+
         # 提交到数据库
         db.session.commit()
 
@@ -158,7 +415,6 @@ def save_draft():
         import traceback
         traceback.print_exc()  # 打印错误堆栈便于调试
         return jsonify({'success': False, 'message': f'保存失败: {str(e)}'})
-
 
 @exams_bp.route('/<int:id>')
 @login_required
@@ -181,17 +437,27 @@ def view(id):
 def edit(id):
     """编辑考试"""
     exam = Exam.query.get_or_404(id)
+    limited_mode = request.args.get('limited', 'false') == 'true'
 
     # 检查权限 - 只有创建者和管理员可以编辑
     if not (current_user.is_admin() or exam.creator_id == current_user.id):
         flash('您没有权限编辑此考试', 'danger')
         return redirect(url_for('exams.index'))
 
-    # 如果考试已经开始，禁止编辑
+    # 判断考试状态与编辑模式
     now = datetime.utcnow()
-    if now > exam.start_time:
-        flash('考试已经开始，无法编辑', 'danger')
+    is_exam_started = now > exam.start_time
+    is_exam_ended = now > exam.end_time
+
+    # 考试已结束，无法编辑
+    if is_exam_ended:
+        flash('考试已经结束，无法编辑', 'danger')
         return redirect(url_for('exams.view', id=exam.id))
+
+    # 考试已开始但未指定有限模式，重定向到有限模式
+    if is_exam_started and not limited_mode:
+        flash('考试已经开始，只能进行有限的编辑', 'warning')
+        return redirect(url_for('exams.edit', id=exam.id, limited='true'))
 
     form = ExamForm(obj=exam)
 
@@ -202,11 +468,43 @@ def edit(id):
 
     if form.validate_on_submit():
         # 更新考试信息
-        exam.title = form.title.data
-        exam.description = form.description.data
-        exam.start_time = form.start_time.data
-        exam.end_time = form.end_time.data
-        exam.is_published = form.is_published.data
+        if not limited_mode:
+            # 完全编辑模式
+            exam.title = form.title.data
+            exam.description = form.description.data
+            exam.start_time = form.start_time.data
+            exam.end_time = form.end_time.data
+            exam.is_published = form.is_published.data
+        else:
+            # 有限编辑模式 - 只能修改描述、时间和时长
+            exam.description = form.description.data
+            exam.start_time = form.start_time.data
+            exam.end_time = form.end_time.data
+
+        # 处理考试时长选项
+        use_duration = request.form.get('use_duration') == 'on'
+        exam.has_duration = use_duration
+        if use_duration:
+            try:
+                duration_minutes = int(request.form.get('exam_duration', 120))
+                exam.duration_minutes = duration_minutes
+            except (ValueError, TypeError):
+                exam.duration_minutes = 120
+
+        # 有限模式下处理题目分值更新
+        if limited_mode and 'update_scores' in request.form:
+            for eq in exam.questions:
+                score_key = f'question_score_{eq.question_id}'
+                if score_key in request.form:
+                    try:
+                        new_score = float(request.form.get(score_key, eq.score))
+                        if new_score >= 0:  # 确保分值非负
+                            eq.score = new_score
+                    except ValueError:
+                        pass  # 忽略无效输入
+
+            # 更新考试总分
+            update_exam_total_score(exam)
 
         db.session.commit()
 
@@ -215,6 +513,29 @@ def edit(id):
 
     return render_template('exams/edit.html', form=form, exam=exam)
 
+
+@exams_bp.route('/<int:id>/delete', methods=['POST'])
+@login_required
+def delete_exam(id):
+    """删除考试"""
+    exam = Exam.query.get_or_404(id)
+
+    # 检查权限
+    if not (current_user.is_admin() or exam.creator_id == current_user.id):
+        return jsonify({'success': False, 'message': '无权限删除此考试'}), 403
+
+    try:
+        # 删除考试题目关联
+        ExamQuestion.query.filter_by(exam_id=id).delete()
+
+        # 删除考试
+        db.session.delete(exam)
+        db.session.commit()
+
+        return jsonify({'success': True, 'message': '考试已删除'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 @exams_bp.route('/<int:id>/questions')
 @login_required
@@ -229,6 +550,9 @@ def manage_questions(id):
 
     # 获取已添加到考试的题目
     exam_questions = ExamQuestion.query.filter_by(exam_id=exam.id).order_by(ExamQuestion.order).all()
+
+    # 保存原始题目状态到会话
+    session[f'exam_{id}_original_questions'] = [eq.question_id for eq in exam_questions]
 
     # 获取可以添加的题目（首页只显示部分，其余通过AJAX加载）
     if current_user.is_admin():
@@ -577,14 +901,35 @@ def save_all(id):
         # 更新考试总分
         update_exam_total_score(exam)
 
+        # 确定重定向URL
+        redirect_url = url_for('exams.continue_create', id=id) if exam.is_draft else url_for('exams.edit', id=id)
+
         return jsonify({
             'success': True,
             'message': '所有更改已保存',
-            'redirect': url_for('exams.view', id=id)
+            'redirect': redirect_url,
+            'is_draft': exam.is_draft
         })
 
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@exams_bp.route('/<int:id>/check_status')
+@login_required
+def check_status(id):
+    """检查考试状态API"""
+    exam = Exam.query.get_or_404(id)
+
+    # 检查权限
+    if not (current_user.is_admin() or exam.creator_id == current_user.id):
+        return jsonify({'success': False, 'message': '无权限操作'}), 403
+
+    return jsonify({
+        'success': True,
+        'is_draft': exam.is_draft,
+        'is_published': exam.is_published
+    })
 
 
 @exams_bp.route('/<int:id>/add_question/<int:question_id>', methods=['POST'])
@@ -724,6 +1069,47 @@ def reorder_questions(id):
     db.session.commit()
 
     return {'success': True}, 200
+
+
+@exams_bp.route('/<int:id>/revert_questions', methods=['POST'])
+@login_required
+def revert_questions(id):
+    """恢复考试题目到上次保存状态"""
+    exam = Exam.query.get_or_404(id)
+
+    # 检查权限
+    if not (current_user.is_admin() or exam.creator_id == current_user.id):
+        return jsonify({'success': False, 'message': '无权限操作'}), 403
+
+
+    try:
+        # 获取管理题目页面开始前的原始题目状态
+        # 这需要在服务器端存储原始状态，可以使用会话数据
+        original_question_ids = session.get(f'exam_{id}_original_questions', [])
+
+        # 首先清除所有当前题目
+        ExamQuestion.query.filter_by(exam_id=id).delete()
+
+        # 如果有原始题目，恢复它们
+        if original_question_ids:
+            for i, q_id in enumerate(original_question_ids):
+                question = Question.query.get(q_id)
+                if question:
+                    exam_question = ExamQuestion(
+                        exam_id=id,
+                        question_id=q_id,
+                        order=i + 1,
+                        score=question.score_default
+                    )
+                    db.session.add(exam_question)
+
+        db.session.commit()
+        update_exam_total_score(exam)
+
+        return jsonify({'success': True, 'message': '已恢复原始设置'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 
 @exams_bp.route('/<int:id>/publish', methods=['POST'])

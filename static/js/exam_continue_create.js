@@ -1,11 +1,9 @@
-// exam_create.js - 考试创建页面脚本
+// exam_continue_create.js - 继续创建考试页面脚本
 document.addEventListener('DOMContentLoaded', function() {
-    console.log("DOM已加载完成，初始化考试创建页面...");
+    console.log("DOM已加载完成，初始化继续创建考试页面...");
 
     // 获取表单元素
     const examForm = document.getElementById('examForm');
-    const toggleRandomQuestions = document.getElementById('toggleRandomQuestions');
-    const randomQuestionsSettings = document.getElementById('randomQuestionsSettings');
     const useDurationCheckbox = document.getElementById('use_duration');
     const durationContainer = document.getElementById('duration_container');
     const examDurationInput = document.getElementById('exam_duration');
@@ -16,7 +14,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const saveDraftBtn = document.getElementById('save_draft_btn');
     const createExamBtn = document.getElementById('create_exam_btn');
     const confirmCreateBtn = document.getElementById('confirm_create_btn');
-    const manageQuestionsBtn = document.getElementById('manage_questions_btn');
     const cancelBtn = document.getElementById('cancel_btn');
 
     // 获取状态和统计元素
@@ -24,14 +21,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const questionCountElement = document.getElementById('question_count');
     const totalScoreElement = document.getElementById('total_score');
     const noQuestionsWarning = document.getElementById('no_questions_warning');
-
-    // 获取题目统计相关元素
-    const choiceCountInput = document.getElementById('choice_count');
-    const choiceScoreInput = document.getElementById('choice_score');
-    const fillBlankCountInput = document.getElementById('fill_blank_count');
-    const fillBlankScoreInput = document.getElementById('fill_blank_score');
-    const programmingCountInput = document.getElementById('programming_count');
-    const programmingScoreInput = document.getElementById('programming_score');
 
     // 表单是否有未保存更改
     let hasUnsavedChanges = false;
@@ -42,11 +31,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // 初始化函数
     function init() {
         console.log("初始化页面");
-
-        // 初始显示状态
-        if (toggleRandomQuestions && toggleRandomQuestions.checked) {
-            randomQuestionsSettings.style.display = 'block';
-        }
 
         // 更新题目统计
         updateQuestionStats();
@@ -61,7 +45,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // 设置事件监听器
     function setupEventListeners() {
         console.log("设置事件监听器");
-
 
         // 考试时长设置
         if (useDurationCheckbox) {
@@ -108,7 +91,6 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
 
-
         // 保存草稿按钮
         if (saveDraftBtn) {
             saveDraftBtn.addEventListener('click', function() {
@@ -117,10 +99,10 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
 
-        // 创建考试按钮
+        // 创建考试按钮（在此页面表示完成创建）
         if (createExamBtn) {
             createExamBtn.addEventListener('click', function() {
-                console.log("创建考试按钮点击");
+                console.log("完成创建按钮点击");
                 showCreateExamModal();
             });
         }
@@ -128,32 +110,10 @@ document.addEventListener('DOMContentLoaded', function() {
         // 确认创建按钮
         if (confirmCreateBtn) {
             confirmCreateBtn.addEventListener('click', function() {
-                console.log("确认创建按钮点击");
+                console.log("确认完成创建按钮点击");
                 submitForm();
             });
         }
-
-        // 管理题目按钮
-        const manageQuestionsBtn = document.getElementById('manage_questions_btn');
-            if (manageQuestionsBtn) {
-                manageQuestionsBtn.addEventListener('click', function() {
-                    console.log("管理题目按钮点击");
-                    // 保存当前表单数据
-                    saveDraft(function(data) {
-                        console.log("saveDraft回调", data);
-
-                        if (data && data.success && data.exam_id) {
-                            // 保存成功后跳转到题目管理页面
-                            console.log("保存成功，跳转到题目管理页面");
-                            window.location.href = `/exams/${data.exam_id}/questions`;
-                        } else {
-                            const errorMessage = data && data.message ? data.message : '未知错误';
-                            console.error("保存失败:", errorMessage);
-                            alert('保存失败: ' + errorMessage);
-                        }
-                    });
-                });
-            }
 
         // 取消按钮
         if (cancelBtn) {
@@ -268,16 +228,18 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateQuestionStats() {
         if (!questionCountElement || !totalScoreElement || !noQuestionsWarning) return;
 
-        // 直接显示统计信息，不再考虑随机抽题
-        // 由于我们已经从页面移除随机抽题功能，这里只显示固定值
-        // 实际数据将在题目管理页面处理
-        questionCountElement.textContent = '0';
-        totalScoreElement.textContent = '0';
-        noQuestionsWarning.style.display = 'block';
+        // 显示页面加载时设置的值
+        const questionCount = parseInt(questionCountElement.textContent) || 0;
+
+        // 如果没有题目，显示警告
+        if (questionCount === 0) {
+            noQuestionsWarning.style.display = 'block';
+        } else {
+            noQuestionsWarning.style.display = 'none';
+        }
 
         console.log("统计信息已更新");
     }
-
 
     // 标记有未保存的更改
     function markUnsaved() {
@@ -323,6 +285,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // 收集表单数据
         const formData = {
+            exam_id: EXAM_ID, // 使用全局变量
             title: document.querySelector('input[name="title"]').value || '',
             description: document.querySelector('textarea[name="description"]').value || '',
             start_time: document.getElementById('start_time').value || '',
@@ -333,12 +296,6 @@ document.addEventListener('DOMContentLoaded', function() {
             is_draft: true  // 明确指定为草稿状态
         };
 
-        // 如果有考试ID，添加到数据中
-        const examIdInput = document.querySelector('input[name="exam_id"]');
-        if (examIdInput && examIdInput.value) {
-            formData.exam_id = examIdInput.value;
-        }
-
         console.log("保存草稿数据:", formData);
 
         // 发送AJAX请求
@@ -346,7 +303,7 @@ document.addEventListener('DOMContentLoaded', function() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRFToken': CSRF_TOKEN // 使用前面定义的全局变量
+                'X-CSRFToken': CSRF_TOKEN
             },
             body: JSON.stringify(formData)
         })
@@ -360,15 +317,6 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log("保存草稿响应:", data);
 
             if (data.success) {
-                // 如果返回了考试ID，添加到表单中
-                if (data.exam_id && !document.querySelector('input[name="exam_id"]')) {
-                    const idInput = document.createElement('input');
-                    idInput.type = 'hidden';
-                    idInput.name = 'exam_id';
-                    idInput.value = data.exam_id;
-                    document.getElementById('examForm').appendChild(idInput);
-                }
-
                 markSaved();
 
                 // 执行回调
@@ -396,7 +344,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 显示创建考试确认对话框
     function showCreateExamModal() {
-        console.log("显示创建考试确认对话框");
+        console.log("显示完成创建确认对话框");
         if (!document.getElementById('exam_summary')) return;
 
         // 准备考试概要信息
@@ -442,7 +390,7 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) {
             console.error("模态框显示失败:", error);
             // 备用方案：使用原生确认框
-            if (confirm("确认创建考试吗？" + (totalCount === 0 ? "注意：此考试尚未添加题目！" : ""))) {
+            if (confirm("确认完成创建吗？" + (totalCount === 0 ? "注意：此考试尚未添加题目！" : ""))) {
                 submitForm();
             }
         }
@@ -454,6 +402,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // 收集表单数据
         const formData = {
+            exam_id: EXAM_ID,
             title: document.querySelector('input[name="title"]').value || '',
             description: document.querySelector('textarea[name="description"]').value || '',
             start_time: document.getElementById('start_time').value || '',
@@ -466,14 +415,8 @@ document.addEventListener('DOMContentLoaded', function() {
         // 确保结束时间输入可用
         if (endTimeInput) endTimeInput.disabled = false;
 
-        // 如果有考试ID，添加到数据中
-        const examIdInput = document.querySelector('input[name="exam_id"]');
-        if (examIdInput && examIdInput.value) {
-            formData.exam_id = examIdInput.value;
-        }
-
         // 发送AJAX请求而不是表单提交
-        fetch('/exams/create_ajax', {  // 修改这里的URL路径
+        fetch('/exams/complete_creation', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -489,20 +432,20 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(data => {
             if (data.success) {
-                // 创建成功，跳转到考试详情页面
+                // 创建完成，跳转到考试详情页面
                 window.location.href = `/exams/${data.exam_id}`;
             } else {
-                console.error("创建考试失败:", data.message);
-                alert("创建考试失败: " + (data.message || "未知错误"));
+                console.error("完成创建失败:", data.message);
+                alert("完成创建失败: " + (data.message || "未知错误"));
             }
         })
         .catch(error => {
-            console.error("创建请求错误:", error);
+            console.error("完成创建请求错误:", error);
             // 如果错误是JSON解析错误，提供更明确的提示
             if (error instanceof SyntaxError) {
                 alert("服务器返回了非JSON格式的响应，请联系管理员检查服务器日志。");
             } else {
-                alert("创建请求出错，请重试");
+                alert("完成创建请求出错，请重试");
             }
         });
     }

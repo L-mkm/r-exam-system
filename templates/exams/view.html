@@ -15,7 +15,9 @@
                 {# 使用存储的当前时间进行比较 #}
                 {% if current_time < exam.start_time %}
                 <a href="{{ url_for('exams.edit', id=exam.id) }}" class="btn btn-primary">编辑考试</a>
-                <a href="{{ url_for('exams.manage_questions', id=exam.id) }}" class="btn btn-info">管理题目</a>
+                {# 移除了管理题目按钮 #}
+                {% elif current_time <= exam.end_time %}
+                <a href="{{ url_for('exams.edit', id=exam.id) }}?limited=true" class="btn btn-primary">编辑考试</a>
                 {% endif %}
             {% endif %}
 
@@ -96,9 +98,11 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <a href="{{ url_for('questions.view', id=eq.question.id) }}">
+                                    <!-- 修改这里：将a标签改为按钮，点击时打开模态框 -->
+                                    <button type="button" class="btn btn-link p-0 view-question-btn"
+                                            data-question-id="{{ eq.question.id }}">
                                         {{ eq.question.title }}
-                                    </a>
+                                    </button>
                                 </td>
                                 <td>{{ eq.score }}</td>
                             </tr>
@@ -115,4 +119,149 @@
         </div>
     </div>
 </div>
+
+<!-- 添加题目详情模态框 -->
+<div class="modal fade" id="questionDetailModal" tabindex="-1" aria-labelledby="questionDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="questionDetailModalLabel">题目详情</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="question_detail_content">
+                    <!-- 题目详情将通过AJAX加载 -->
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 题目详情查看
+document.addEventListener('DOMContentLoaded', function() {
+    // 获取所有查看题目按钮
+    const viewButtons = document.querySelectorAll('.view-question-btn');
+
+    // 为每个按钮添加点击事件
+    viewButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const questionId = this.getAttribute('data-question-id');
+            viewQuestionDetail(questionId);
+        });
+    });
+
+    // 查看题目详情函数
+    function viewQuestionDetail(questionId) {
+        const detailContent = document.getElementById('question_detail_content');
+        if (!detailContent) return;
+
+        // 显示加载中
+        detailContent.innerHTML = `
+            <div class="text-center">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">加载中...</span>
+                </div>
+            </div>
+        `;
+
+        // 显示模态框
+        const modal = new bootstrap.Modal(document.getElementById('questionDetailModal'));
+        modal.show();
+
+        // 加载题目详情
+        fetch(`/questions/api/detail/${questionId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 根据题目类型显示不同内容
+                    let content = `
+                        <h4>${data.question.title}</h4>
+                        <div class="mb-3">
+                            <span class="badge ${getBadgeClass(data.question.question_type)}">${getTypeText(data.question.question_type)}</span>
+                            <span class="badge bg-secondary">难度: ${data.question.difficulty}</span>
+                        </div>
+                        <div class="question-content mb-3">${data.question.content}</div>
+                    `;
+
+                    // 选择题选项
+                    if (data.question.question_type === 'choice' && data.options && data.options.length > 0) {
+                        content += '<h5>选项</h5><div class="list-group">';
+                        data.options.forEach(option => {
+                            content += `
+                                <div class="list-group-item ${option.is_correct ? 'list-group-item-success' : ''}">
+                                    ${option.is_correct ? '<span class="badge bg-success me-2">正确</span>' : ''}
+                                    ${option.content}
+                                </div>
+                            `;
+                        });
+                        content += '</div>';
+                    }
+
+                    // 填空题和编程题答案
+                    if (data.question.standard_answer) {
+                        content += `
+                            <h5 class="mt-3">标准答案</h5>
+                            <div class="card">
+                                <div class="card-body">
+                                    <pre>${data.question.standard_answer}</pre>
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    // 解析说明
+                    if (data.question.explanation) {
+                        content += `
+                            <h5 class="mt-3">解析</h5>
+                            <div class="card">
+                                <div class="card-body">
+                                    ${data.question.explanation}
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    detailContent.innerHTML = content;
+                } else {
+                    detailContent.innerHTML = `<div class="alert alert-danger">加载题目详情失败: ${data.message}</div>`;
+                }
+            })
+            .catch(error => {
+                console.error('加载题目详情失败:', error);
+                detailContent.innerHTML = '<div class="alert alert-danger">加载题目详情失败，请重试</div>';
+            });
+    }
+
+    // 获取题型徽章样式
+    function getBadgeClass(type) {
+        switch(type) {
+            case 'choice': return 'bg-primary';
+            case 'fill_blank': return 'bg-success';
+            case 'programming': return 'bg-warning';
+            default: return 'bg-secondary';
+        }
+    }
+
+    // 获取题型文本
+    function getTypeText(type) {
+        switch(type) {
+            case 'choice': return '选择题';
+            case 'fill_blank': return '填空题';
+            case 'programming': return '编程题';
+            default: return '未知题型';
+        }
+    }
+});
+</script>
 {% endblock %}

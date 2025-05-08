@@ -25,6 +25,62 @@
         {% endif %}
     </div>
 
+    <!-- 新增：搜索和筛选区域 -->
+    {% if current_user.is_admin() or current_user.is_teacher() %}
+    <div class="card mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">搜索与筛选</h5>
+        </div>
+        <div class="card-body">
+            <form method="get" action="{{ url_for('exams.index') }}" id="filter-form">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="search" name="search" placeholder="搜索考试标题..." value="{{ request.args.get('search', '') }}">
+                            <button class="btn btn-outline-secondary" type="submit">
+                                <i class="bi bi-search"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="d-flex">
+                            <div class="me-3">
+                                <select class="form-select" id="is_published" name="is_published">
+                                    <option value="">所有状态</option>
+                                    <option value="true" {% if request.args.get('is_published') == 'true' %}selected{% endif %}>已发布</option>
+                                    <option value="false" {% if request.args.get('is_published') == 'false' %}selected{% endif %}>未发布</option>
+                                </select>
+                            </div>
+                            <div>
+                                <select class="form-select" id="status" name="status">
+                                    <option value="">所有阶段</option>
+                                    <option value="not_started" {% if request.args.get('status') == 'not_started' %}selected{% endif %}>未开始</option>
+                                    <option value="in_progress" {% if request.args.get('status') == 'in_progress' %}selected{% endif %}>进行中</option>
+                                    <option value="ended" {% if request.args.get('status') == 'ended' %}selected{% endif %}>已结束</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <div class="input-group">
+                            <span class="input-group-text">创建日期</span>
+                            <input type="date" class="form-control" id="start_date" name="start_date" value="{{ request.args.get('start_date', '') }}">
+                            <span class="input-group-text">至</span>
+                            <input type="date" class="form-control" id="end_date" name="end_date" value="{{ request.args.get('end_date', '') }}">
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3 text-end">
+                        <button type="submit" class="btn btn-primary">应用筛选</button>
+                        <a href="{{ url_for('exams.index') }}" class="btn btn-outline-secondary">重置</a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
     <div class="row">
         {% for exam in exams %}
         <div class="col-md-6 mb-4">
@@ -64,8 +120,11 @@
 
                     {% if current_user.is_admin() or current_user.id == exam.creator_id %}
                         {% if current_time < exam.start_time %}
-                        <a href="{{ url_for('exams.edit', id=exam.id) }}" class="btn btn-sm btn-outline-secondary">编辑</a>
-                        <a href="{{ url_for('exams.manage_questions', id=exam.id) }}" class="btn btn-sm btn-outline-info">管理题目</a>
+                            <!-- 未开始的考试可以完全编辑，但移除"管理题目"按钮 -->
+                            <a href="{{ url_for('exams.edit', id=exam.id) }}" class="btn btn-sm btn-outline-secondary">编辑</a>
+                        {% elif current_time <= exam.end_time %}
+                            <!-- 进行中的考试只能编辑部分内容 -->
+                            <a href="{{ url_for('exams.edit', id=exam.id) }}?limited=true" class="btn btn-sm btn-outline-secondary">编辑</a>
                         {% endif %}
 
                         {% if not exam.is_published %}
@@ -90,10 +149,39 @@
         {% else %}
         <div class="col-12">
             <div class="alert alert-info">
-                没有找到考试
+                没有找到符合条件的考试
             </div>
         </div>
         {% endfor %}
     </div>
 </div>
+
+<!-- 添加JavaScript，实现实时筛选效果 -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 监听筛选表单中的select变化，自动提交表单
+        const filterSelects = document.querySelectorAll('#filter-form select');
+        filterSelects.forEach(select => {
+            select.addEventListener('change', function() {
+                document.getElementById('filter-form').submit();
+            });
+        });
+
+        // 为日期输入框添加变化监听
+        const dateInputs = document.querySelectorAll('#filter-form input[type="date"]');
+        dateInputs.forEach(input => {
+            input.addEventListener('change', function() {
+                // 确保结束日期不早于开始日期
+                const startDate = document.getElementById('start_date');
+                const endDate = document.getElementById('end_date');
+
+                if(startDate.value && endDate.value && endDate.value < startDate.value) {
+                    endDate.value = startDate.value;
+                }
+
+                document.getElementById('filter-form').submit();
+            });
+        });
+    });
+</script>
 {% endblock %}

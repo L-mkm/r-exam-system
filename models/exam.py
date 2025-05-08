@@ -15,6 +15,8 @@ class Exam(db.Model):
     is_draft = db.Column(db.Boolean, default=True)  # 默认为草稿状态
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     creator_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    has_duration = db.Column(db.Boolean, default=False)
+    duration_minutes = db.Column(db.Integer, default=120)  # 默认120分钟
 
     # 建立与题目的多对多关系，通过中间表
     questions = db.relationship('ExamQuestion', back_populates='exam')

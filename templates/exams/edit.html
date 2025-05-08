@@ -3,17 +3,30 @@
 {% block title %}编辑考试{% endblock %}
 
 {% block content %}
+{% set limited_mode = request.args.get('limited', '') == 'true' %}
 <div class="container mt-4">
     <h1>编辑考试</h1>
-    <div class="card">
-        <div class="card-body">
-            <form method="post" id="examForm">
-                {{ form.csrf_token }}
 
-                <!-- 基本信息 -->
+    {% if limited_mode %}
+    <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle"></i> 考试进行中，仅可编辑以下内容：考试说明、开始/结束时间、考试时长和题目分值。
+    </div>
+    {% endif %}
+
+    <form method="post" id="examForm">
+        {{ form.csrf_token }}
+
+        <!-- 分为三个主要区域 -->
+        <div class="card mb-4">
+            <!-- 第一区域：基本信息 -->
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">基本信息</h5>
+            </div>
+            <div class="card-body">
+                <!-- 考试标题 -->
                 <div class="mb-3">
                     {{ form.title.label(class="form-label") }}
-                    {{ form.title(class="form-control") }}
+                    {{ form.title(class="form-control", readonly=limited_mode) }}
                     {% if form.title.errors %}
                     <div class="text-danger">
                         {% for error in form.title.errors %}
@@ -23,6 +36,7 @@
                     {% endif %}
                 </div>
 
+                <!-- 考试说明 -->
                 <div class="mb-3">
                     {{ form.description.label(class="form-label") }}
                     {{ form.description(class="form-control", rows=3) }}
@@ -35,10 +49,11 @@
                     {% endif %}
                 </div>
 
+                <!-- 时间设置，添加考试时长选项 -->
                 <div class="row mb-3">
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         {{ form.start_time.label(class="form-label") }}
-                        {{ form.start_time(class="form-control", type="datetime-local") }}
+                        {{ form.start_time(class="form-control", type="datetime-local", id="start_time") }}
                         {% if form.start_time.errors %}
                         <div class="text-danger">
                             {% for error in form.start_time.errors %}
@@ -47,9 +62,27 @@
                         </div>
                         {% endif %}
                     </div>
-                    <div class="col-md-6">
+
+                    <!-- 新增：考试时长选项 -->
+                    <div class="col-md-4">
+                        <div class="form-check mt-4">
+                            <input class="form-check-input" type="checkbox" id="use_duration" name="use_duration"
+                                  {% if exam.has_duration %}checked{% endif %}>
+                            <label class="form-check-label" for="use_duration">
+                                使用考试时长
+                            </label>
+                        </div>
+                        <div id="duration_container" style="{% if not exam.has_duration %}display: none;{% endif %}" class="mt-2">
+                            <label for="exam_duration" class="form-label">考试时长（分钟）</label>
+                            <input type="number" class="form-control" id="exam_duration" name="exam_duration"
+                                min="10" value="{{ exam.duration_minutes|default(120) }}">
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
                         {{ form.end_time.label(class="form-label") }}
-                        {{ form.end_time(class="form-control", type="datetime-local") }}
+                        {{ form.end_time(class="form-control", type="datetime-local", id="end_time",
+                                         disabled=exam.has_duration) }}
                         {% if form.end_time.errors %}
                         <div class="text-danger">
                             {% for error in form.end_time.errors %}
@@ -59,20 +92,206 @@
                         {% endif %}
                     </div>
                 </div>
+            </div>
+        </div>
 
+        <!-- 第二区域：考试设置 (在有限模式下隐藏) -->
+        {% if not limited_mode %}
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">考试设置</h5>
+            </div>
+            <div class="card-body">
+                <!-- 发布设置 -->
                 <div class="mb-3 form-check">
                     {{ form.is_published(class="form-check-input") }}
                     {{ form.is_published.label(class="form-check-label") }}
                     <small class="text-muted">勾选后学生将可以看到此考试</small>
                 </div>
 
-                <div class="text-center">
-                    <button type="submit" class="btn btn-primary">保存修改</button>
-                    <a href="{{ url_for('exams.manage_questions', id=exam.id) }}" class="btn btn-info">管理题目</a>
-                    <a href="{{ url_for('exams.view', id=exam.id) }}" class="btn btn-secondary">取消</a>
+                <!-- 题目统计信息 -->
+                <div class="alert alert-info">
+                    <div class="d-flex justify-content-between">
+                        <span>当前题目数量: <span id="question_count">{{ exam.questions|length }}</span></span>
+                        <span>预计总分: <span id="total_score">{{ exam.total_score }}</span></span>
+                    </div>
+                    <div id="no_questions_warning" class="text-danger mt-2"
+                         style="{% if exam.questions|length > 0 %}display: none;{% endif %}">
+                        请添加题目
+                    </div>
                 </div>
-            </form>
+            </div>
         </div>
-    </div>
+        {% endif %}
+
+        <!-- 新增：在有限模式下显示题目分值编辑区域 -->
+        {% if limited_mode and exam.questions|length > 0 %}
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">题目分值设置</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>序号</th>
+                                <th>题目</th>
+                                <th>类型</th>
+                                <th>当前分值</th>
+                                <th>新分值</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for eq in exam.questions %}
+                            <tr>
+                                <td>{{ eq.order }}</td>
+                                <td>{{ eq.question.title|truncate(50) }}</td>
+                                <td>
+                                    {% if eq.question.question_type == 'choice' %}
+                                    <span class="badge bg-primary">选择题</span>
+                                    {% elif eq.question.question_type == 'fill_blank' %}
+                                    <span class="badge bg-success">填空题</span>
+                                    {% elif eq.question.question_type == 'programming' %}
+                                    <span class="badge bg-warning">编程题</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ eq.score }}</td>
+                                <td>
+                                    <div class="input-group input-group-sm">
+                                        <input type="number" class="form-control form-control-sm question-score"
+                                               name="question_score_{{ eq.question_id }}"
+                                               value="{{ eq.score }}" min="0" step="0.5">
+                                        <span class="input-group-text">分</span>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <input type="hidden" name="update_scores" value="1">
+                <div class="alert alert-info mt-3">
+                    <i class="bi bi-info-circle"></i> 修改题目分值后，系统将自动更新考试总分。
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- 第三区域：操作按钮 -->
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">操作</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        {% if not limited_mode %}
+                        <a href="{{ url_for('exams.manage_questions', id=exam.id) }}" id="manage_questions_btn" class="btn btn-warning">管理题目</a>
+                        {% endif %}
+                        <span id="save_status" class="text-success ms-2" style="display: none;">已保存</span>
+                    </div>
+                    <div>
+                        <button type="submit" class="btn btn-primary">保存修改</button>
+                        <a href="{{ url_for('exams.view', id=exam.id) }}" id="cancel_btn" class="btn btn-outline-danger">取消</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<!-- 传递变量到JS文件 -->
+<script>
+// 全局变量
+const CSRF_TOKEN = "{{ csrf_token() }}";
+const EXAM_ID = {{ exam.id }};
+const LIMITED_MODE = {% if limited_mode %}true{% else %}false{% endif %};
+</script>
+
+<!-- 添加编辑页面所需的JavaScript代码 -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 获取相关元素
+    const useDurationCheckbox = document.getElementById('use_duration');
+    const durationContainer = document.getElementById('duration_container');
+    const examDurationInput = document.getElementById('exam_duration');
+    const startTimeInput = document.getElementById('start_time');
+    const endTimeInput = document.getElementById('end_time');
+
+    // 设置考试时长选项的事件监听
+    if (useDurationCheckbox) {
+        useDurationCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                durationContainer.style.display = 'block';
+                calculateEndTime();
+                endTimeInput.disabled = true;
+            } else {
+                durationContainer.style.display = 'none';
+                endTimeInput.disabled = false;
+            }
+        });
+    }
+
+    // 当开始时间改变时，如果启用了考试时长，就重新计算结束时间
+    if (startTimeInput) {
+        startTimeInput.addEventListener('change', function() {
+            if (useDurationCheckbox && useDurationCheckbox.checked) {
+                calculateEndTime();
+            }
+        });
+    }
+
+    // 当考试时长改变时，重新计算结束时间
+    if (examDurationInput) {
+        examDurationInput.addEventListener('input', function() {
+            if (useDurationCheckbox && useDurationCheckbox.checked) {
+                calculateEndTime();
+            }
+        });
+    }
+
+    // 根据开始时间和考试时长计算结束时间
+    function calculateEndTime() {
+        if (!startTimeInput || !startTimeInput.value) return;
+
+        const startTime = new Date(startTimeInput.value);
+        const durationMinutes = parseInt(examDurationInput.value) || 120;
+
+        if (!isNaN(startTime.getTime())) {
+            const endTime = new Date(startTime.getTime() + durationMinutes * 60000);
+
+            // 格式化为datetime-local格式: YYYY-MM-DDTHH:MM
+            const year = endTime.getFullYear();
+            const month = String(endTime.getMonth() + 1).padStart(2, '0');
+            const day = String(endTime.getDate()).padStart(2, '0');
+            const hours = String(endTime.getHours()).padStart(2, '0');
+            const minutes = String(endTime.getMinutes()).padStart(2, '0');
+
+            const formattedEndTime = `${year}-${month}-${day}T${hours}:${minutes}`;
+            endTimeInput.value = formattedEndTime;
+
+            // 禁用结束时间输入
+            endTimeInput.disabled = true;
+        }
+    }
+
+    // 有限模式下计算总分
+    if (LIMITED_MODE) {
+        const scoreInputs = document.querySelectorAll('.question-score');
+        if (scoreInputs.length > 0) {
+            scoreInputs.forEach(input => {
+                input.addEventListener('change', function() {
+                    // 验证输入是否有效
+                    if (this.value < 0) {
+                        this.value = 0;
+                    }
+                });
+            });
+        }
+    }
+});
+</script>
 {% endblock %}
