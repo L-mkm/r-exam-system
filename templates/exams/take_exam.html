@@ -176,8 +176,20 @@ document.addEventListener('DOMContentLoaded', function() {
         timeUpCallback: function() {
             // 时间到时自动提交
             console.log('考试时间结束，自动提交...');
-            // 可以在这里添加自动提交的代码
-            document.getElementById('exam-form').submit();
+
+                try {
+                    // 使用正确的表单 ID 'submit-exam-form'
+                    const examForm = document.getElementById('submit-exam-form');
+                    if (examForm) {
+                        examForm.submit();
+                    } else {
+                        throw new Error('找不到考试表单（#submit-exam-form）');
+                    }
+                } catch (error) {
+                    console.error('自动提交失败:', error);
+                    // 添加应急提交方案
+                    addEmergencySubmitButton(EXAM_ID);
+                }
         }
     });
 
@@ -189,6 +201,21 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('当前剩余时间: ' + examTimer.getRemainingSeconds() + ' 秒');
     }, 60000);  // 每分钟记录一次
 });
+
+// 添加应急提交按钮函数
+function addEmergencySubmitButton(examId) {
+    const container = document.createElement('div');
+    container.className = 'alert alert-danger fixed-bottom mb-0 text-center py-3';
+    container.innerHTML = `
+        <strong>考试时间已结束!</strong>
+        <p>系统自动提交失败，请点击下方按钮手动提交考试</p>
+        <form method="POST" action="/exams/student/submit_exam/${examId}">
+            <input type="hidden" name="csrf_token" value="${document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''}">
+            <button type="submit" class="btn btn-danger btn-lg">提交考试</button>
+        </form>
+    `;
+    document.body.appendChild(container);
+}
 </script>
 <script>
     // 等待页面完全加载

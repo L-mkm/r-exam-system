@@ -206,23 +206,50 @@ class ExamTimer {
         submitMessageElement.innerHTML = '<strong>注意：</strong> 考试时间已结束，系统正在自动提交您的答案...';
         document.body.appendChild(submitMessageElement);
 
-        // 创建表单并提交
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = this.options.autoSubmitUrl.replace(':id', this.options.examId);
+        try {
+            // 首先尝试查找并提交表单 - 使用正确的 ID
+            const examForm = document.getElementById('submit-exam-form');
+            if (examForm) {
+                console.log('找到考试表单，准备提交...');
+                examForm.submit();
+                return;
+            }
 
-        // 添加CSRF令牌（如果有）
-        const csrfElement = document.querySelector('meta[name="csrf-token"]');
-        if (csrfElement) {
-            const csrfInput = document.createElement('input');
-            csrfInput.type = 'hidden';
-            csrfInput.name = 'csrf_token';
-            csrfInput.value = csrfElement.getAttribute('content');
-            form.appendChild(csrfInput);
+            console.log('未找到考试表单，创建一个新表单提交...');
+
+            // 如果找不到表单，创建并提交一个新表单
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = this.options.autoSubmitUrl;
+
+            // 添加CSRF令牌（如果有）
+            const csrfElement = document.querySelector('meta[name="csrf-token"]');
+            if (csrfElement) {
+                const csrfInput = document.createElement('input');
+                csrfInput.type = 'hidden';
+                csrfInput.name = 'csrf_token';
+                csrfInput.value = csrfElement.getAttribute('content');
+                form.appendChild(csrfInput);
+            } else {
+                console.warn('未找到CSRF令牌，提交可能会失败');
+            }
+
+            document.body.appendChild(form);
+            form.submit();
+        } catch (error) {
+            console.error('自动提交过程中出错:', error);
+
+            // 如果自动提交失败，显示错误并提供手动提交的按钮
+            const errorElement = document.createElement('div');
+            errorElement.className = 'alert alert-danger mt-3';
+            errorElement.innerHTML = `
+                <strong>错误：</strong> 自动提交失败，请点击下方按钮手动提交。
+                <br><br>
+                <a href="${this.options.autoSubmitUrl}" 
+                   class="btn btn-danger">手动提交考试</a>
+            `;
+            document.body.appendChild(errorElement);
         }
-
-        document.body.appendChild(form);
-        form.submit();
     }
 
     /**
