@@ -159,36 +159,36 @@ const CSRF_TOKEN = "{{ csrf_token() }}";
 <!-- 引入考试计时器脚本 -->
 <script src="{{ url_for('static', filename='js/exam_timer.js') }}"></script>
 <script>
-    // 初始化考试计时器
-    document.addEventListener('DOMContentLoaded', function() {
-        // 创建计时器实例
-        const examTimer = new ExamTimer({
-            // 剩余时间（从服务器获取）
-            remainingSeconds: REMAINING_SECONDS,
-            // 考试ID
-            examId: EXAM_ID,
-            // 检查服务器时间
-            checkServerTime: true,
-            // 服务器时间检查URL
-            serverTimeUrl: '/exams/student/check_time',
-            // 自动提交URL
-            autoSubmitUrl: '/exams/student/submit_exam/' + EXAM_ID,
-            // 时间到回调
-            timeUpCallback: function() {
-                alert('考试时间已结束，系统将自动提交您的答案！');
-                // 自动提交考试
-                document.getElementById('submit-exam-form').submit();
-            },
-            // 警告回调
-            warningCallback: function(remainingSeconds) {
-                // 5分钟提醒
-                alert(`注意：考试仅剩${Math.ceil(remainingSeconds / 60)}分钟！请抓紧时间完成。`);
-            }
-        });
-
-        // 启动计时器
-        examTimer.start();
+// 初始化考试计时器
+// 确保计时器正确初始化，使用服务器提供的剩余时间
+document.addEventListener('DOMContentLoaded', function() {
+    // 初始化计时器
+    const examTimer = new ExamTimer({
+        remainingSeconds: REMAINING_SECONDS,
+        timerElementId: 'remaining-time',
+        warningThreshold: 300,  // 5分钟警告
+        dangerThreshold: 60,    // 1分钟危险警告
+        checkServerTime: true,   // 启用与服务器同步
+        serverTimeCheckInterval: 30,  // 每30秒同步一次
+        serverTimeUrl: '/exams/student/check_time',
+        examId: EXAM_ID,
+        autoSubmitUrl: '/exams/student/submit_exam/' + EXAM_ID,
+        timeUpCallback: function() {
+            // 时间到时自动提交
+            console.log('考试时间结束，自动提交...');
+            // 可以在这里添加自动提交的代码
+            document.getElementById('exam-form').submit();
+        }
     });
+
+    // 开始计时
+    examTimer.start();
+
+    // 定期记录时间，便于调试
+    setInterval(function() {
+        console.log('当前剩余时间: ' + examTimer.getRemainingSeconds() + ' 秒');
+    }, 60000);  // 每分钟记录一次
+});
 </script>
 <script>
     // 等待页面完全加载

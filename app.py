@@ -37,6 +37,9 @@ def load_user(user_id):
 def create_app():
     app = Flask(__name__, static_folder='static', template_folder='templates')
 
+    # 设置默认时区为 UTC
+    app.config['TIMEZONE'] = 'UTC'
+
     # 配置数据库
     basedir = os.path.abspath(os.path.dirname(__file__))
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'r_exam.db')

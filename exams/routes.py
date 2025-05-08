@@ -171,6 +171,12 @@ def create():
             is_draft=False  # 直接设为非草稿状态
         )
 
+        # 记录开始和结束时间，确保正确保存
+        current_app.logger.debug(
+            f"创建考试 - 开始时间: {exam.start_time.strftime('%Y-%m-%d %H:%M:%S')}, "
+            f"结束时间: {exam.end_time.strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+
         # 处理考试时长选项
         use_duration = request.form.get('use_duration') == 'on'
         exam.has_duration = use_duration

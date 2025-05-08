@@ -23,48 +23,62 @@ def student_exams():
         flash('只有学生可以访问此页面', 'danger')
         return redirect(url_for('index'))
 
-    # 获取当前时间
-    now = datetime.utcnow()
+    from sqlalchemy import and_, or_
 
-    # 添加调试日志
-    current_app.logger.debug(f"当前时间: {now}")
+    # 获取当前UTC时间
+    now_utc = datetime.utcnow()
 
-    # 先获取学生已提交的考试ID列表
+    # 转换为北京时间（UTC+8）
+    now_local = now_utc + timedelta(hours=8)
+
+    current_app.logger.debug(f"当前UTC时间: {now_utc.strftime('%Y-%m-%d %H:%M:%S')}")
+    current_app.logger.debug(f"当前北京时间: {now_local.strftime('%Y-%m-%d %H:%M:%S')}")
+
+    # 查询所有已发布的考试做时间分析
+    all_exams = Exam.query.filter(Exam.is_published == True).all()
+    for exam in all_exams:
+        current_app.logger.debug(
+            f"考试ID: {exam.id}, 标题: {exam.title}, "
+            f"开始时间: {exam.start_time.strftime('%Y-%m-%d %H:%M:%S')}, "
+            f"结束时间: {exam.end_time.strftime('%Y-%m-%d %H:%M:%S')}, "
+            f"本地时间是否在范围内: {exam.start_time <= now_local <= exam.end_time}"
+        )
+
+    # 获取学生已提交的考试ID列表
     submitted_exam_ids = [score.exam_id for score in Score.query.filter_by(
         student_id=current_user.id
     ).filter(
         or_(Score.is_final_submit == True, Score.is_graded == True)
     ).all()]
 
-    current_app.logger.debug(f"已提交的考试IDs: {submitted_exam_ids}")
-
-    # 查询可参加的考试（已发布、在时间范围内且尚未提交）
+    # 查询可参加的考试 - 使用本地时间（北京时间）
     available_exams = Exam.query.filter(
         Exam.is_published == True,
-        Exam.start_time <= now,
-        Exam.end_time >= now,
-        ~Exam.id.in_(submitted_exam_ids) if submitted_exam_ids else True  # 排除已提交的考试
+        Exam.start_time <= now_local,  # 使用北京时间
+        Exam.end_time >= now_local,  # 使用北京时间
+        ~Exam.id.in_(submitted_exam_ids) if submitted_exam_ids else True
     ).order_by(Exam.start_time).all()
 
     current_app.logger.debug(f"可参加的考试数量: {len(available_exams)}")
+    for exam in available_exams:
+        current_app.logger.debug(f"可参加考试: ID={exam.id}, 标题={exam.title}")
 
-    # 查询即将开始的考试
+    # 查询即将开始的考试 - 使用本地时间
     upcoming_exams = Exam.query.filter(
         Exam.is_published == True,
-        Exam.start_time > now
+        Exam.start_time > now_local  # 使用北京时间
     ).order_by(Exam.start_time).all()
 
-    # 查询已完成的考试（两种情况：1.考试已结束 或 2.学生已提交）
-    # 获取已结束的考试IDs
+    # 获取已结束的考试IDs - 使用本地时间
     ended_exam_ids = [exam.id for exam in Exam.query.filter(
         Exam.is_published == True,
-        Exam.end_time < now
+        Exam.end_time < now_local  # 使用北京时间
     ).all()]
 
-    # 合并两种情况的考试IDs（已提交的和已结束的）
+    # 合并两种情况的考试IDs
     completed_exam_ids = list(set(submitted_exam_ids + ended_exam_ids))
 
-    # 只查询有成绩记录的已完成考试，确保学生确实参与了这些考试
+    # 只查询有成绩记录的已完成考试
     if completed_exam_ids:
         completed_exams = Exam.query.join(
             Score, and_(
@@ -78,6 +92,7 @@ def student_exams():
         completed_exams = []
 
     # 添加调试日志
+    current_app.logger.debug(f"已提交的考试IDs: {submitted_exam_ids}")
     current_app.logger.debug(f"已结束的考试IDs: {ended_exam_ids}")
     current_app.logger.debug(f"最终已完成的考试IDs: {completed_exam_ids}")
     current_app.logger.debug(f"已完成考试数量: {len(completed_exams)}")
@@ -89,7 +104,8 @@ def student_exams():
                            available_exams=available_exams,
                            upcoming_exams=upcoming_exams,
                            completed_exams=completed_exams,
-                           current_time=now)
+                           current_time=now_local)  # 传递本地时间到模板
+
 
 @exams_bp.route('/student/take_exam/<int:exam_id>')
 @login_required
@@ -107,15 +123,23 @@ def take_exam(exam_id):
         flash('该考试尚未发布', 'danger')
         return redirect(url_for('exams.student_exams'))
 
-    # 获取当前时间
-    now = datetime.utcnow()
+    # 获取当前时间并转换为北京时间
+    now_utc = datetime.utcnow()
+    now_local = now_utc + timedelta(hours=8)  # UTC+8
 
-    # 检查考试时间
-    if now < exam.start_time:
+    current_app.logger.debug(
+        f"【参加考试】当前UTC时间: {now_utc.strftime('%Y-%m-%d %H:%M:%S')}, "
+        f"当前北京时间: {now_local.strftime('%Y-%m-%d %H:%M:%S')}, "
+        f"考试开始时间: {exam.start_time.strftime('%Y-%m-%d %H:%M:%S')}, "
+        f"结束时间: {exam.end_time.strftime('%Y-%m-%d %H:%M:%S')}"
+    )
+
+    # 检查考试时间 - 使用北京时间
+    if now_local < exam.start_time:
         flash('考试尚未开始', 'warning')
         return redirect(url_for('exams.student_exams'))
 
-    if now > exam.end_time:
+    if now_local > exam.end_time:
         flash('考试已结束', 'warning')
         return redirect(url_for('exams.student_exams'))
 
@@ -149,8 +173,8 @@ def take_exam(exam_id):
     # 获取考试题目
     exam_questions = ExamQuestion.query.filter_by(exam_id=exam_id).order_by(ExamQuestion.order).all()
 
-    # 计算剩余时间（秒）
-    remaining_seconds = int((exam.end_time - now).total_seconds())
+    # 计算剩余时间（秒）- 使用北京时间
+    remaining_seconds = int((exam.end_time - now_local).total_seconds())
 
     # 创建学生答题表单
     answer_form = StudentAnswerForm()
@@ -161,7 +185,6 @@ def take_exam(exam_id):
                            score_id=score_id,
                            remaining_seconds=remaining_seconds,
                            answer_form=answer_form)
-
 
 @exams_bp.route('/student/get_question/<int:exam_id>/<int:question_id>')
 @login_required
@@ -284,7 +307,6 @@ def get_answer_status(exam_id):
         current_app.logger.error(f"获取答题状态时出错: {str(e)}")
         return jsonify({'error': '服务器错误', 'message': f'获取答题状态时发生错误: {str(e)}'}), 500
 
-
 @exams_bp.route('/student/save_answer', methods=['POST'])
 @login_required
 def save_answer():
@@ -305,8 +327,7 @@ def save_answer():
             return jsonify({'success': False, 'message': '参数不完整'}), 400
 
         # 添加日志，帮助调试
-        current_app.logger.debug(
-            f"接收到的答案数据: score_id={score_id}, question_id={question_id}, answer_content={answer_content}")
+        current_app.logger.debug(f"接收到的答案数据: score_id={score_id}, question_id={question_id}")
 
         # 获取题目类型，以便进行适当的处理
         question = Question.query.get(question_id)
@@ -320,9 +341,11 @@ def save_answer():
                 if isinstance(answer_content, str):
                     # 确保是有效的JSON
                     json.loads(answer_content)
+                    current_app.logger.debug(f"选择题答案: {answer_content}")
                 else:
                     # 如果不是字符串，确保转换为JSON字符串
                     answer_content = json.dumps(answer_content)
+                    current_app.logger.debug(f"转换后的选择题答案: {answer_content}")
             except json.JSONDecodeError as e:
                 current_app.logger.error(f"选择题答案JSON解析失败: {e}, 原始内容: {answer_content}")
                 return jsonify({'success': False, 'message': f'选择题答案格式错误: {str(e)}'}), 400
@@ -332,10 +355,18 @@ def save_answer():
         if score.student_id != current_user.id:
             return jsonify({'success': False, 'message': '权限不足'}), 403
 
-        # 检查考试是否在进行中
+        # 检查考试是否在进行中 - 使用北京时间
         exam = Exam.query.get_or_404(score.exam_id)
-        now = datetime.utcnow()
-        if now > exam.end_time or now < exam.start_time:
+        now_utc = datetime.utcnow()
+        now_local = now_utc + timedelta(hours=8)  # UTC+8
+
+        current_app.logger.debug(
+            f"【保存答案】当前UTC时间: {now_utc.strftime('%Y-%m-%d %H:%M:%S')}, "
+            f"当前北京时间: {now_local.strftime('%Y-%m-%d %H:%M:%S')}, "
+            f"考试结束时间: {exam.end_time.strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+
+        if now_local > exam.end_time or now_local < exam.start_time:
             return jsonify({'success': False, 'message': '考试时间已过或未开始'}), 403
 
         # 查找已存在的答案记录
@@ -348,6 +379,7 @@ def save_answer():
             # 更新现有答案
             existing_answer.answer_content = answer_content
             existing_answer.submitted_at = datetime.utcnow()
+            current_app.logger.debug(f"更新答案: question_id={question_id}")
         else:
             # 创建新答案记录
             new_answer = StudentAnswer(
@@ -357,13 +389,14 @@ def save_answer():
                 points_earned=0  # 初始分数为0
             )
             db.session.add(new_answer)
+            current_app.logger.debug(f"创建新答案: question_id={question_id}")
 
         db.session.commit()
 
         return jsonify({
             'success': True,
             'message': '答案已保存',
-            'saved_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+            'saved_at': now_local.strftime('%Y-%m-%d %H:%M:%S')  # 返回北京时间
         })
 
     except Exception as e:
@@ -446,7 +479,6 @@ def view_result(exam_id):
                            score=score,
                            question_answers=question_answers)
 
-
 @exams_bp.route('/student/check_time/<int:exam_id>')
 @login_required
 def check_time(exam_id):
@@ -460,36 +492,45 @@ def check_time(exam_id):
         if not exam:
             return jsonify({'error': '考试不存在', 'message': f'找不到ID为{exam_id}的考试'}), 404
 
-        # 获取当前时间
-        now = datetime.utcnow()
-        current_app.logger.debug(f"当前时间: {now}, 考试开始时间: {exam.start_time}, 结束时间: {exam.end_time}")
+        # 获取当前时间并转换为北京时间
+        now_utc = datetime.utcnow()
+        now_local = now_utc + timedelta(hours=8)  # UTC+8
 
-        # 计算剩余时间
-        if now > exam.end_time:
+        current_app.logger.debug(
+            f"【时间检查】当前UTC时间: {now_utc.strftime('%Y-%m-%d %H:%M:%S')}, "
+            f"当前北京时间: {now_local.strftime('%Y-%m-%d %H:%M:%S')}, "
+            f"考试开始时间: {exam.start_time.strftime('%Y-%m-%d %H:%M:%S')}, "
+            f"结束时间: {exam.end_time.strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+
+        # 计算剩余时间 - 使用北京时间与考试时间比较
+        if now_local > exam.end_time:
             remaining_seconds = 0
             status = 'ended'
-        elif now < exam.start_time:
-            remaining_seconds = int((exam.start_time - now).total_seconds())
+            current_app.logger.debug("【时间检查】考试已结束")
+        elif now_local < exam.start_time:
+            remaining_seconds = int((exam.start_time - now_local).total_seconds())
             status = 'not_started'
+            current_app.logger.debug(f"【时间检查】考试未开始，还有 {remaining_seconds} 秒")
         else:
-            remaining_seconds = int((exam.end_time - now).total_seconds())
+            remaining_seconds = int((exam.end_time - now_local).total_seconds())
             status = 'in_progress'
+            current_app.logger.debug(f"【时间检查】考试进行中，剩余 {remaining_seconds} 秒")
 
         result = {
             'remaining_seconds': remaining_seconds,
             'status': status,
-            'current_time': now.strftime('%Y-%m-%d %H:%M:%S'),
+            'current_time': now_local.strftime('%Y-%m-%d %H:%M:%S'),
             'start_time': exam.start_time.strftime('%Y-%m-%d %H:%M:%S'),
-            'end_time': exam.end_time.strftime('%Y-%m-%d %H:%M:%S')
+            'end_time': exam.end_time.strftime('%Y-%m-%d %H:%M:%S'),
+            'server_timestamp': int(now_local.timestamp())
         }
-        current_app.logger.debug(f"检查时间API返回: {result}")
 
         return jsonify(result)
     except Exception as e:
         # 记录错误到日志
         current_app.logger.error(f"检查考试时间时出错: {str(e)}")
         return jsonify({'error': '服务器错误', 'message': f'检查考试时间时发生错误: {str(e)}'}), 500
-
 
 def auto_grade_choice_questions(score):
     """自动评分选择题"""

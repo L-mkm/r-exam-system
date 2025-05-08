@@ -231,22 +231,34 @@ class ExamTimer {
     syncWithServerTime() {
         if (!this.options.checkServerTime || !this.options.examId) return;
 
-        fetch(`${this.options.serverTimeUrl}/${this.options.examId}`)
-            .then(response => response.json())
+        // 添加时间戳防止缓存
+        const timestamp = new Date().getTime();
+
+        fetch(`${this.options.serverTimeUrl}/${this.options.examId}?t=${timestamp}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`服务器响应错误: ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
+                console.log('服务器时间同步数据:', data);
+
                 if (data.remaining_seconds !== undefined) {
                     // 记录时间差异
                     const diff = Math.abs(this.remainingSeconds - data.remaining_seconds);
                     console.log(`服务器时间同步：本地剩余${this.remainingSeconds}秒，服务器剩余${data.remaining_seconds}秒，差异${diff}秒`);
 
-                    // 如果差异超过30秒，更新本地时间
-                    if (diff > 30) {
+                    // 如果差异超过10秒，更新本地时间 - 减小阈值提高精度
+                    if (diff > 10) {
                         this.remainingSeconds = data.remaining_seconds;
                         this.updateDisplay();
+                        console.log(`已同步时间到服务器时间，剩余${this.remainingSeconds}秒`);
                     }
 
                     // 如果考试已结束，强制结束计时
-                    if (data.status === 'ended') {
+                    if (data.status === 'ended' || data.remaining_seconds <= 0) {
+                        console.log('服务器指示考试已结束，强制结束计时');
                         this.timeUp();
                     }
                 }
