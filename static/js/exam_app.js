@@ -262,9 +262,60 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         const questionId = currentQuestionId;
+        // 确保转换为JSON字符串
         const answerContent = JSON.stringify(selectedOptions);
 
+        // 增加日志检查数据
+        console.log('选择题答案数据:', {
+            selectedOptions: selectedOptions,
+            answerContent: answerContent
+        });
+
         saveAnswerToServer(questionId, answerContent);
+    }
+
+    // 填充已保存的答案函数修改
+    function fillSavedAnswer(question) {
+        if(question.question_type === 'choice') {
+            try {
+                // 确保我们传入的是有效的JSON字符串
+                let selectedOptions;
+                if (typeof question.saved_answer === 'string') {
+                    selectedOptions = JSON.parse(question.saved_answer);
+                } else {
+                    // 如果已经是对象，尝试直接使用
+                    selectedOptions = question.saved_answer || [];
+                }
+
+                // 检查解析后的内容是否为数组
+                if (!Array.isArray(selectedOptions)) {
+                    console.error('解析后的选择题答案不是数组:', selectedOptions);
+                    selectedOptions = [];
+                }
+
+                console.log('解析选择题答案:', selectedOptions);
+
+                // 使用解析后的数组设置checkbox状态
+                selectedOptions.forEach(optionId => {
+                    const checkbox = document.getElementById(`option-${optionId}`);
+                    if(checkbox) {
+                        checkbox.checked = true;
+                    } else {
+                        console.warn(`未找到选项ID为${optionId}的选择框`);
+                    }
+                });
+            } catch(e) {
+                console.error('解析已保存的选择题答案失败:', e);
+                console.error('原始答案内容:', question.saved_answer);
+            }
+        } else {
+            // 对于填空题和编程题
+            const textarea = document.getElementById('answer_content');
+            if (question.saved_answer && question.saved_answer.trim() !== '') {
+                // 如果有已保存的答案，使用它
+                textarea.value = question.saved_answer;
+            }
+        }
     }
 
     // 保存填空题或编程题答案

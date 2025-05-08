@@ -1,6 +1,6 @@
 from flask import render_template, request, redirect, url_for, flash, jsonify, current_app
 from flask_login import current_user, login_required
-from sqlalchemy import and_
+from sqlalchemy import and_, or_
 from exams import exams_bp
 from models.db import db
 from models.exam import Exam
@@ -26,12 +26,27 @@ def student_exams():
     # 获取当前时间
     now = datetime.utcnow()
 
-    # 查询可参加的考试（已发布且在时间范围内）
+    # 添加调试日志
+    current_app.logger.debug(f"当前时间: {now}")
+
+    # 先获取学生已提交的考试ID列表
+    submitted_exam_ids = [score.exam_id for score in Score.query.filter_by(
+        student_id=current_user.id
+    ).filter(
+        or_(Score.is_final_submit == True, Score.is_graded == True)
+    ).all()]
+
+    current_app.logger.debug(f"已提交的考试IDs: {submitted_exam_ids}")
+
+    # 查询可参加的考试（已发布、在时间范围内且尚未提交）
     available_exams = Exam.query.filter(
         Exam.is_published == True,
         Exam.start_time <= now,
-        Exam.end_time >= now
+        Exam.end_time >= now,
+        ~Exam.id.in_(submitted_exam_ids) if submitted_exam_ids else True  # 排除已提交的考试
     ).order_by(Exam.start_time).all()
+
+    current_app.logger.debug(f"可参加的考试数量: {len(available_exams)}")
 
     # 查询即将开始的考试
     upcoming_exams = Exam.query.filter(
@@ -39,21 +54,42 @@ def student_exams():
         Exam.start_time > now
     ).order_by(Exam.start_time).all()
 
-    # 查询已结束的考试
-    completed_exams = Exam.query.filter(
+    # 查询已完成的考试（两种情况：1.考试已结束 或 2.学生已提交）
+    # 获取已结束的考试IDs
+    ended_exam_ids = [exam.id for exam in Exam.query.filter(
         Exam.is_published == True,
         Exam.end_time < now
-    ).join(Score, and_(
-        Score.exam_id == Exam.id,
-        Score.student_id == current_user.id
-    )).order_by(Exam.end_time.desc()).all()
+    ).all()]
+
+    # 合并两种情况的考试IDs（已提交的和已结束的）
+    completed_exam_ids = list(set(submitted_exam_ids + ended_exam_ids))
+
+    # 只查询有成绩记录的已完成考试，确保学生确实参与了这些考试
+    if completed_exam_ids:
+        completed_exams = Exam.query.join(
+            Score, and_(
+                Score.exam_id == Exam.id,
+                Score.student_id == current_user.id
+            )
+        ).filter(
+            Exam.id.in_(completed_exam_ids)
+        ).all()
+    else:
+        completed_exams = []
+
+    # 添加调试日志
+    current_app.logger.debug(f"已结束的考试IDs: {ended_exam_ids}")
+    current_app.logger.debug(f"最终已完成的考试IDs: {completed_exam_ids}")
+    current_app.logger.debug(f"已完成考试数量: {len(completed_exams)}")
+
+    # 对完成的考试按结束时间倒序排序
+    completed_exams.sort(key=lambda x: x.end_time, reverse=True)
 
     return render_template('exams/student_exams.html',
                            available_exams=available_exams,
                            upcoming_exams=upcoming_exams,
                            completed_exams=completed_exams,
                            current_time=now)
-
 
 @exams_bp.route('/student/take_exam/<int:exam_id>')
 @login_required
@@ -256,56 +292,84 @@ def save_answer():
     if not current_user.is_student():
         return jsonify({'success': False, 'message': '权限不足'}), 403
 
-    data = request.get_json()
-    if not data:
-        return jsonify({'success': False, 'message': '无效请求'}), 400
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': '无效请求'}), 400
 
-    score_id = data.get('score_id')
-    question_id = data.get('question_id')
-    answer_content = data.get('answer_content')
+        score_id = data.get('score_id')
+        question_id = data.get('question_id')
+        answer_content = data.get('answer_content')
 
-    if not all([score_id, question_id]):
-        return jsonify({'success': False, 'message': '参数不完整'}), 400
+        if not all([score_id, question_id]):
+            return jsonify({'success': False, 'message': '参数不完整'}), 400
 
-    # 检查得分记录是否存在且属于当前用户
-    score = Score.query.get_or_404(score_id)
-    if score.student_id != current_user.id:
-        return jsonify({'success': False, 'message': '权限不足'}), 403
+        # 添加日志，帮助调试
+        current_app.logger.debug(
+            f"接收到的答案数据: score_id={score_id}, question_id={question_id}, answer_content={answer_content}")
 
-    # 检查考试是否在进行中
-    exam = Exam.query.get_or_404(score.exam_id)
-    now = datetime.utcnow()
-    if now > exam.end_time or now < exam.start_time:
-        return jsonify({'success': False, 'message': '考试时间已过或未开始'}), 403
+        # 获取题目类型，以便进行适当的处理
+        question = Question.query.get(question_id)
+        if not question:
+            return jsonify({'success': False, 'message': '题目不存在'}), 404
 
-    # 查找已存在的答案记录
-    existing_answer = StudentAnswer.query.filter_by(
-        score_id=score_id,
-        question_id=question_id
-    ).first()
+        # 对选择题答案的特殊处理
+        if question.question_type == 'choice':
+            try:
+                # 尝试验证JSON格式
+                if isinstance(answer_content, str):
+                    # 确保是有效的JSON
+                    json.loads(answer_content)
+                else:
+                    # 如果不是字符串，确保转换为JSON字符串
+                    answer_content = json.dumps(answer_content)
+            except json.JSONDecodeError as e:
+                current_app.logger.error(f"选择题答案JSON解析失败: {e}, 原始内容: {answer_content}")
+                return jsonify({'success': False, 'message': f'选择题答案格式错误: {str(e)}'}), 400
 
-    if existing_answer:
-        # 更新现有答案
-        existing_answer.answer_content = answer_content
-        existing_answer.submitted_at = datetime.utcnow()
-    else:
-        # 创建新答案记录
-        new_answer = StudentAnswer(
+        # 检查得分记录是否存在且属于当前用户
+        score = Score.query.get_or_404(score_id)
+        if score.student_id != current_user.id:
+            return jsonify({'success': False, 'message': '权限不足'}), 403
+
+        # 检查考试是否在进行中
+        exam = Exam.query.get_or_404(score.exam_id)
+        now = datetime.utcnow()
+        if now > exam.end_time or now < exam.start_time:
+            return jsonify({'success': False, 'message': '考试时间已过或未开始'}), 403
+
+        # 查找已存在的答案记录
+        existing_answer = StudentAnswer.query.filter_by(
             score_id=score_id,
-            question_id=question_id,
-            answer_content=answer_content,
-            points_earned=0  # 初始分数为0
-        )
-        db.session.add(new_answer)
+            question_id=question_id
+        ).first()
 
-    db.session.commit()
+        if existing_answer:
+            # 更新现有答案
+            existing_answer.answer_content = answer_content
+            existing_answer.submitted_at = datetime.utcnow()
+        else:
+            # 创建新答案记录
+            new_answer = StudentAnswer(
+                score_id=score_id,
+                question_id=question_id,
+                answer_content=answer_content,
+                points_earned=0  # 初始分数为0
+            )
+            db.session.add(new_answer)
 
-    return jsonify({
-        'success': True,
-        'message': '答案已保存',
-        'saved_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-    })
+        db.session.commit()
 
+        return jsonify({
+            'success': True,
+            'message': '答案已保存',
+            'saved_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+        })
+
+    except Exception as e:
+        current_app.logger.error(f"保存答案时发生错误: {str(e)}")
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'保存答案失败: {str(e)}'}), 500
 
 @exams_bp.route('/student/submit_exam/<int:exam_id>', methods=['POST'])
 @login_required
