@@ -232,15 +232,17 @@
                                         <span class="badge bg-warning">编程题</span>
                                         {% endif %}
                                     </td>
-                                    <td title="{{ eq.question.title }}">{{ eq.question.title|truncate(30) }}</td>
+                                    <td>
+                                        <a href="javascript:void(0);" class="question-title-link" data-question-id="{{ eq.question_id }}">
+                                            {{ eq.question.title|truncate(30) }}
+                                        </a>
+                                    </td>
                                     <td>
                                         <input type="number" class="form-control form-control-sm score-input"
                                                value="{{ eq.score }}" min="0" step="0.5"
                                                data-question-id="{{ eq.question_id }}">
                                     </td>
                                     <td>
-                                        <button class="btn btn-sm btn-info view-btn"
-                                                data-question-id="{{ eq.question_id }}">查看详情</button>
                                         <button class="btn btn-sm btn-danger remove-btn"
                                                 data-question-id="{{ eq.question_id }}">移除</button>
                                     </td>
@@ -330,7 +332,11 @@
                                         <span class="badge bg-warning">编程题</span>
                                         {% endif %}
                                     </td>
-                                    <td title="{{ question.title }}">{{ question.title|truncate(30) }}</td>
+                                    <td>
+                                        <a href="javascript:void(0);" class="question-title-link" data-question-id="{{ question.id }}">
+                                            {{ question.title|truncate(30) }}
+                                        </a>
+                                    </td>
                                     <td>{{ question.difficulty }}</td>
                                     <td>
                                         <button class="btn btn-sm btn-success add-btn"

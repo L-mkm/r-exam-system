@@ -112,12 +112,22 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         // 查看题目详情
-        document.querySelectorAll('.view-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
+        // document.querySelectorAll('.view-btn').forEach(btn => {
+           // btn.addEventListener('click', function() {
+                // const questionId = this.getAttribute('data-question-id');
+                // viewQuestionDetail(questionId);
+            // });
+        // });
+
+        // +题目标题点击事件
+        document.querySelectorAll('.question-title-link').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
                 const questionId = this.getAttribute('data-question-id');
                 viewQuestionDetail(questionId);
             });
         });
+
 
         // 批量选择
         if (selectAllAdded) {
@@ -827,12 +837,27 @@ document.addEventListener('DOMContentLoaded', function() {
             <td>
                 <span class="badge ${getBadgeClass(question.question_type)}">${getTypeText(question.question_type)}</span>
             </td>
-            <td title="${question.title}">${truncateText(question.title, 30)}</td>
+            <td>
+                <a href="javascript:void(0);" class="question-title-link" data-question-id="${question.id}">
+                    ${truncateText(question.title, 30)}
+                </a>
+            </td>
             <td>${question.difficulty}</td>
             <td>
                 <button class="btn btn-sm btn-success add-btn" data-question-id="${question.id}">添加</button>
             </td>
         `;
+
+        // 为新创建的行中的题目标题添加点击事件
+        const titleLink = row.querySelector('.question-title-link');
+        if (titleLink) {
+            titleLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                const questionId = this.getAttribute('data-question-id');
+                viewQuestionDetail(questionId);
+            });
+        }
+
 
         return row;
     }
