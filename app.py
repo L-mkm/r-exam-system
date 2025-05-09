@@ -14,6 +14,7 @@ import os
 from models.db import db  # 导入已存在的SQLAlchemy实例，不要再创建新的
 import json
 from utils import get_beijing_time, to_beijing_time
+from models.code_template import CodeTemplate
 
 
 # 第三次修改：创建数据库实例
@@ -109,7 +110,7 @@ def create_app():
         from models.student_answer import StudentAnswer
         return [User, Category, Tag, question_tag, Question, QuestionOption, Exam, ExamQuestion, Score, StudentAnswer]
 
-    with app.app_context():
+    with ((app.app_context())):
         models = load_models()
         print(f"加载了 {len(models)} 个数据库模型")
         # a.不想删除已有数据:
@@ -124,6 +125,17 @@ def create_app():
             default_category = Category(name="未分类")
             db.session.add(default_category)
             db.session.commit()
+
+        # 初始化代码模板
+        from models.code_template import CodeTemplate
+        if CodeTemplate.query.count() == 0:
+            # 如果没有模板，初始化它们
+            try:
+                from init_templates import init_templates_function
+                init_templates_function(app)  # 这里不需要传app，因为我们已经在app.app_context()中
+                print("代码模板已自动初始化")
+            except Exception as e:
+                print(f"模板初始化失败: {e}")
 
     # 第五次修改
     # 注册题库管理蓝图

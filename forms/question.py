@@ -3,6 +3,7 @@ from wtforms import StringField, TextAreaField, SelectField, IntegerField, Boole
 from wtforms.validators import DataRequired, Length, NumberRange, Optional
 # 第六次修改
 from models.category import Category
+from models.code_template import CodeTemplate
 
 class OptionForm(FlaskForm):
     content = TextAreaField('选项内容', validators=[Optional()])
@@ -33,19 +34,34 @@ class QuestionForm(FlaskForm):
                                     description='填空题可以设置多个答案，用分号(;)分隔，学生回答其中任意一个即视为正确')
     explanation = TextAreaField('题目解析', validators=[Optional()])
     test_code = TextAreaField('测试代码', validators=[Optional()])
+    template_id = SelectField('测试代码模板', coerce=int, validators=[Optional()])
+    reference_answer = TextAreaField('参考答案', validators=[Optional()],
+                                     description='编程题参考答案（选填，考试结束后学生可见）')
 
     # 对于选择题的选项
     options = FieldList(FormField(OptionForm), min_entries=2, max_entries=10, render_kw={"class": "hidden-label"})
     # 第八次修改
     is_public = BooleanField('公开此题目', default=True)
 
-    # 第六次
     def __init__(self, *args, **kwargs):
         super(QuestionForm, self).__init__(*args, **kwargs)
         # 动态加载分类列表
         self.category_id.choices = [(0, '-- 选择分类 --')] + [
             (c.id, c.name) for c in Category.query.order_by(Category.name).all()
         ]
+
+        # 添加调试日志
+        template_count = CodeTemplate.query.count()
+        print(f"加载测试代码模板，数据库中共有 {template_count} 个模板")
+
+        # 动态加载测试代码模板
+        templates = CodeTemplate.query.order_by(CodeTemplate.name).all()
+        template_choices = [(0, '-- 不使用模板 --')]
+        for t in templates:
+            template_choices.append((t.id, t.name))
+            print(f"添加模板选项: ID={t.id}, 名称={t.name}")
+
+        self.template_id.choices = template_choices
 
 class QuestionSearchForm(FlaskForm):
     keyword = StringField('关键词', validators=[Optional()])
@@ -68,10 +84,25 @@ class QuestionSearchForm(FlaskForm):
                                  coerce=int,
                                  default=0)
 
-    # 第六次
     def __init__(self, *args, **kwargs):
         super(QuestionSearchForm, self).__init__(*args, **kwargs)
         # 动态加载分类列表
         self.category_id.choices = [(0, '所有分类')] + [
             (c.id, c.name) for c in Category.query.order_by(Category.name).all()
         ]
+
+class CodeTemplateForm(FlaskForm):
+    name = StringField('模板名称', validators=[DataRequired(), Length(max=100)])
+    description = TextAreaField('描述', validators=[Optional()])
+    template_type = SelectField('模板类型',
+                                choices=[
+                                    ('function_test', '函数正确性测试'),
+                                    ('data_processing', '数据处理测试'),
+                                    ('statistics', '统计分析测试'),
+                                    ('plotting', '图形参数测试'),
+                                    ('custom', '自定义测试')
+                                ],
+                                validators=[DataRequired()])
+    template_code = TextAreaField('模板代码', validators=[DataRequired()])
+
+

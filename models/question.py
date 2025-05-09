@@ -23,8 +23,12 @@ class Question(db.Model):
     creator_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     # 第七次修改
     test_code = db.Column(db.Text)  # R测试代码（对于编程题）
+    reference_answer = db.Column(db.Text)  # 参考答案（对于编程题）
     # 第八次修改
     is_public = db.Column(db.Boolean, default=True)  # 是否所有教师可见
+    #
+    template_id = db.Column(db.Integer, db.ForeignKey('code_template.id'))
+    template = db.relationship('CodeTemplate')
 
     # 第五次修改
     # 类别和标签关系
@@ -66,11 +70,8 @@ class Question(db.Model):
 
     @property
     def effective_standard_answer(self):
-        """
-        获取有效的标准答案
-        - 如果是编程题且标准答案为"See code template"或为空，则返回答案模板
-        - 否则返回标准答案
-        """
-        if self.is_programming() and (not self.standard_answer or self.standard_answer == "See code template"):
-            return self.answer_template or "暂无标准答案"
+        """获取有效的标准答案"""
+        if self.is_programming():
+            # 编程题优先使用参考答案，没有则返回提示
+            return self.reference_answer or "此题无标准参考答案，请参考评分反馈。"
         return self.standard_answer or "暂无标准答案"

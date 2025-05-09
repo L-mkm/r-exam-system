@@ -180,7 +180,7 @@
                     <div class="mb-3">
                         {{ form.answer_template.label(class="form-label") }}
                         {{ form.answer_template(class="form-control", rows=5) }}
-                        <small class="text-muted">提供参考R代码（仅供教师参考，不会展示给学生）</small>
+                        <small class="text-muted">提供参考R代码模板（学生答题时将看到此模板）</small>
                         {% if form.answer_template.errors %}
                         <div class="text-danger">
                             {% for error in form.answer_template.errors %}
@@ -191,9 +191,28 @@
                     </div>
 
                     <div class="mb-3">
+                        {{ form.reference_answer.label(class="form-label") }}
+                        {{ form.reference_answer(class="form-control", rows=5) }}
+                        <small class="text-muted">参考答案（选填，考试结束后学生可见，不影响自动评分）</small>
+                        {% if form.reference_answer.errors %}
+                        <div class="text-danger">
+                            {% for error in form.reference_answer.errors %}
+                            {{ error }}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.template_id.label(class="form-label") }}
+                        {{ form.template_id(class="form-control", id="template_selector") }}
+                        <small class="text-muted">选择预设测试代码模板</small>
+                    </div>
+
+                    <div class="mb-3">
                         {{ form.test_code.label(class="form-label") }}
-                        {{ form.test_code(class="form-control", rows=5) }}
-                        <small class="text-muted">编写用于测试学生代码的R脚本</small>
+                        {{ form.test_code(class="form-control", rows=5, id="test_code_area") }}
+                        <small class="text-muted">编写用于测试学生代码的R脚本（可在模板基础上修改）</small>
                         {% if form.test_code.errors %}
                         <div class="text-danger">
                             {% for error in form.test_code.errors %}
@@ -286,6 +305,33 @@
             });
         });
     });
+</script>
+<script>
+    // 已有的JavaScript代码...
+
+    // 添加模板选择处理代码
+    document.addEventListener('DOMContentLoaded', function() {
+        const templateSelector = document.getElementById('template_selector');
+        const testCodeArea = document.getElementById('test_code_area');
+
+        if (templateSelector && testCodeArea) {
+            templateSelector.addEventListener('change', function() {
+                const templateId = this.value;
+                if (templateId > 0) {
+                    fetch(`/questions/api/templates/${templateId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            testCodeArea.value = data.template.code;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('获取模板失败:', error);
+                    });
+            }
+        });
+    }
+});
 </script>
 {% endblock %}
 {% endblock %}

@@ -9,7 +9,8 @@ from models.category import Category
 from models.tag import Tag
 # 第六次：debug
 from models.exam import Exam
-from forms.question import QuestionForm, QuestionSearchForm
+from forms.question import QuestionForm, QuestionSearchForm, CodeTemplateForm
+from models.code_template import CodeTemplate
 
 
 @questions_bp.route('/')
@@ -97,7 +98,17 @@ def create():
         flash('您没有权限创建题目', 'danger')
         return redirect(url_for('questions.index'))
 
+        # 调试一下 记得删
+        templates = CodeTemplate.query.all()
+        print(f"数据库中模板数量: {len(templates)}")
+        for t in templates:
+            print(f"模板ID: {t.id}, 名称: {t.name}")
+
     form = QuestionForm()
+
+    print("表单模板选项:")
+    for choice in form.template_id.choices:
+        print(f"ID: {choice[0]}, Name: {choice[1]}")
 
     # 填充分类下拉列表
     form.category_id.choices = [(c.id, c.name) for c in Category.query.order_by(Category.name).all()]
@@ -130,7 +141,8 @@ def create():
             explanation=form.explanation.data,
             creator_id=current_user.id,
             # 第七次修改
-            test_code = form.test_code.data if form.question_type.data == 'programming' else None
+            test_code = form.test_code.data if form.question_type.data == 'programming' else None,
+            reference_answer = form.reference_answer.data if form.question_type.data == 'programming' else None,
         )
 
         # 处理标签
@@ -169,6 +181,44 @@ def create():
     return render_template('questions/create.html', form=form)
 
 
+@questions_bp.route('/templates')
+@login_required
+def template_list():
+    """测试代码模板列表"""
+    if not (current_user.is_admin() or current_user.is_teacher()):
+        flash('您没有权限管理测试代码模板', 'danger')
+        return redirect(url_for('questions.index'))
+
+    templates = CodeTemplate.query.order_by(CodeTemplate.name).all()
+    return render_template('questions/templates.html', templates=templates)
+
+
+@questions_bp.route('/templates/create', methods=['GET', 'POST'])
+@login_required
+def create_template():
+    """创建测试代码模板"""
+    if not (current_user.is_admin() or current_user.is_teacher()):
+        flash('您没有权限创建测试代码模板', 'danger')
+        return redirect(url_for('questions.index'))
+
+    form = CodeTemplateForm()  # 稍后定义此表单
+
+    if form.validate_on_submit():
+        template = CodeTemplate(
+            name=form.name.data,
+            description=form.description.data,
+            template_code=form.template_code.data,
+            template_type=form.template_type.data,
+            created_by=current_user.id
+        )
+        db.session.add(template)
+        db.session.commit()
+
+        flash('测试代码模板创建成功！', 'success')
+        return redirect(url_for('questions.template_list'))
+
+    return render_template('questions/create_template.html', form=form)
+
 @questions_bp.route('/<int:id>')
 @login_required
 def view(id):
@@ -188,6 +238,18 @@ def view(id):
             return redirect(url_for('questions.index'))
 
     return render_template('questions/view.html', question=question)
+
+
+@questions_bp.route('/templates/<int:id>')
+@login_required
+def view_template(id):
+    """查看测试代码模板"""
+    if not (current_user.is_admin() or current_user.is_teacher()):
+        flash('您没有权限查看测试代码模板', 'danger')
+        return redirect(url_for('questions.index'))
+
+    template = CodeTemplate.query.get_or_404(id)
+    return render_template('questions/view_template.html', template=template)
 
 
 @questions_bp.route('/<int:id>/edit', methods=['GET', 'POST'])
@@ -238,6 +300,7 @@ def edit(id):
         question.test_code = form.test_code.data if form.question_type.data == 'programming' else None
         # 第八次修改
         question.is_public = form.is_public.data
+        question.reference_answer = form.reference_answer.data if form.question_type.data == 'programming' else None
 
         # 处理标签
         # 先清除旧标签
@@ -399,3 +462,99 @@ def question_detail_api(id):
     response_data['tags'] = [{'id': tag.id, 'name': tag.name} for tag in question.tags]
 
     return jsonify(response_data)
+
+@questions_bp.route('/api/templates')
+@login_required
+def api_templates():
+    """获取模板列表的API"""
+    if not (current_user.is_admin() or current_user.is_teacher()):
+        return jsonify({'success': False, 'message': '权限不足'}), 403
+
+    templates = CodeTemplate.query.order_by(CodeTemplate.name).all()
+    return jsonify({
+        'success': True,
+        'templates': [{'id': t.id, 'name': t.name, 'type': t.template_type} for t in templates]
+    })
+
+
+@questions_bp.route('/api/templates/<int:id>')
+@login_required
+def api_template_detail(id):
+    """获取模板详情的API"""
+    if not (current_user.is_admin() or current_user.is_teacher()):
+        return jsonify({'success': False, 'message': '权限不足'}), 403
+
+    template = CodeTemplate.query.get_or_404(id)
+    return jsonify({
+        'success': True,
+        'template': {
+            'id': template.id,
+            'name': template.name,
+            'description': template.description,
+            'code': template.template_code,
+            'type': template.template_type
+        }
+    })
+
+@questions_bp.route('/init-templates')
+@login_required
+def init_templates_view():
+    """手动初始化测试代码模板"""
+    # 检查权限
+    if not current_user.is_admin():
+        flash('您没有权限执行此操作', 'danger')
+        return redirect(url_for('questions.index'))
+
+    # 检查是否已有模板
+    if CodeTemplate.query.count() > 0:
+        # 如果已有模板，提供一个选项来强制重新初始化
+        force = request.args.get('force', 'false') == 'true'
+        if not force:
+            flash(f'已存在 {CodeTemplate.query.count()} 个测试代码模板。如需重新初始化，请添加参数 ?force=true', 'info')
+            return redirect(url_for('questions.index'))
+        else:
+            # 删除现有模板
+            CodeTemplate.query.delete()
+            db.session.commit()
+
+    # 函数正确性测试
+    function_test = CodeTemplate(
+        name="函数正确性测试",
+        description="测试学生实现的函数输出是否符合预期",
+        template_type="function_test",
+        template_code="""# 函数正确性测试内容..."""  # 这里填入完整的模板代码
+    )
+
+    # 添加其他模板...
+    # 数据处理测试
+    data_processing = CodeTemplate(
+        name="数据处理测试",
+        description="测试学生处理数据的正确性",
+        template_type="data_processing",
+        template_code="""# 数据处理测试内容..."""  # 这里填入完整的模板代码
+    )
+
+    # 统计分析测试
+    statistics_test = CodeTemplate(
+        name="统计分析测试",
+        description="测试统计计算是否正确",
+        template_type="statistics",
+        template_code="""# 统计分析测试内容..."""  # 这里填入完整的模板代码
+    )
+
+    # 图形参数测试
+    plotting_test = CodeTemplate(
+        name="图形参数测试",
+        description="测试绘图函数调用的参数是否正确",
+        template_type="plotting",
+        template_code="""# 图形参数测试内容..."""  # 这里填入完整的模板代码
+    )
+
+    db.session.add(function_test)
+    db.session.add(data_processing)
+    db.session.add(statistics_test)
+    db.session.add(plotting_test)
+    db.session.commit()
+
+    flash('测试代码模板初始化完成', 'success')
+    return redirect(url_for('questions.index'))
