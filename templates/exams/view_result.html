@@ -4,10 +4,32 @@
 
 {% block head %}
 {{ super() }}
+<!-- 确保加载顺序：先基础库，再加载模式 -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.3/codemirror.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.3/theme/monokai.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.3/codemirror.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.3/mode/r/r.min.js"></script>
+<!-- 添加一个检查脚本加载的函数 -->
+<script>
+    function loadScript(url, callback) {
+        var script = document.createElement('script');
+        script.src = url;
+        script.onload = callback;
+        script.onerror = function() {
+            console.error('Failed to load script:', url);
+        };
+        document.head.appendChild(script);
+    }
+
+    // 按顺序加载脚本
+    document.addEventListener('DOMContentLoaded', function() {
+        loadScript('https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.3/codemirror.min.js', function() {
+            loadScript('https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.3/mode/r/r.min.js', function() {
+                console.log('CodeMirror and mode loaded successfully');
+                // 触发一个事件，通知脚本已加载完成
+                document.dispatchEvent(new Event('codemirror-loaded'));
+            });
+        });
+    });
+</script>
 <style>
     .CodeMirror {
         height: auto;
@@ -25,6 +47,15 @@
     .incorrect-answer {
         background-color: #f8d7da;
         border-color: #f5c6cb;
+    }
+    /* 确保textarea在CodeMirror加载失败时也有合理的样式 */
+    .code-container textarea {
+        width: 100%;
+        min-height: 150px;
+        font-family: monospace;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
     }
 </style>
 {% endblock %}
@@ -52,11 +83,11 @@
                     </div>
                     <div class="d-flex justify-content-between mb-2">
                         <span>得分率:</span>
-                        <span>{{ (score.total_score / exam.total_score * 100)|round(2) }}%</span>
+                        <span>{{ (score.total_score / exam.total_score * 100)|round(2) if exam.total_score > 0 else 0 }}%</span>
                     </div>
                     <div class="d-flex justify-content-between mb-2">
                         <span>提交时间:</span>
-                        <span>{{ score.submit_time.strftime('%Y-%m-%d %H:%M') }}</span>
+                        <span>{{ score.submit_time.strftime('%Y-%m-%d %H:%M') if score.submit_time else '未提交' }}</span>
                     </div>
                     <div class="d-flex justify-content-between">
                         <span>评分状态:</span>
@@ -134,15 +165,18 @@
                                     <h6 class="font-weight-bold">您的答案:</h6>
                                     {% if qa.question.question_type == 'choice' %}
                                         {% if qa.answer %}
-                                            <!-- 调试信息 -->
-                                            <!-- <div style="background-color: #f8f9fa; padding: 5px; margin-bottom: 10px; border-radius: 5px;">
-                                                <small>原始答案数据: {{ qa.answer.answer_content }}</small>
-                                            </div> -->
-                                            {% set student_options = qa.answer.answer_content|safe|json_decode %}
+                                            <!-- 使用安全的选择题答案展示方法 -->
                                             <ul>
                                                 {% for option in qa.question.options %}
-                                                    {% if option.id|string in student_options or option.id in student_options %}
-                                                        <li>{{ option.content }}</li>
+                                                    {% if qa.answer.answer_content %}
+                                                        {% set student_options = qa.answer.answer_content|default('[]')|safe|json_decode|default([]) %}
+                                                        {% if student_options is not iterable or student_options is string %}
+                                                            {% set student_options = [student_options] %}
+                                                        {% endif %}
+
+                                                        {% if option.id|string in student_options or option.id in student_options %}
+                                                            <li>{{ option.content }}</li>
+                                                        {% endif %}
                                                     {% endif %}
                                                 {% endfor %}
                                             </ul>
@@ -167,25 +201,47 @@
                                     {% endif %}
                                 </div>
 
-                                <!-- 标准答案 (仅在考试结束后显示) -->
+                                <!-- 标准答案 (只在考试结束后显示，不在学生提交后显示) -->
                                 {% if exam.end_time < get_now() %}
+                                <!-- 添加调试信息 -->
+                                <div style="background-color: #f8f9fa; padding: 5px; margin-bottom: 10px; border-radius: 5px;">
+                                    <small>考试结束时间: {{ exam.end_time.strftime('%Y-%m-%d %H:%M:%S') }}, 当前时间: {{ get_now().strftime('%Y-%m-%d %H:%M:%S') }}</small>
+                                </div>
+
                                 <div class="standard-answer mb-3">
                                     <h6 class="font-weight-bold">标准答案:</h6>
                                     {% if qa.question.question_type == 'choice' %}
-                                        <!-- 调试信息 -->
-                                        <div style="background-color: #f8f9fa; padding: 5px; margin-bottom: 10px; border-radius: 5px;">
-                                            <small>正确选项数量: {{ qa.question.correct_options|length }}</small>
-                                        </div>
-                                        <ul>
-                                            {% for option in qa.question.correct_options %}
-                                                <li>{{ option.content }}</li>
-                                            {% endfor %}
-                                        </ul>
+                                        {% if qa.question.correct_options %}
+                                            <ul>
+                                                {% for option in qa.question.correct_options %}
+                                                    <li>{{ option.content }}</li>
+                                                {% endfor %}
+                                            </ul>
+                                        {% else %}
+                                            <p class="text-muted">暂无标准答案</p>
+                                        {% endif %}
                                     {% elif qa.question.question_type == 'fill_blank' %}
-                                        <pre>{{ qa.question.standard_answer }}</pre>
+                                        {% if qa.question.standard_answer %}
+                                            <pre>{{ qa.question.standard_answer }}</pre>
+                                        {% else %}
+                                            <p class="text-muted">暂无标准答案</p>
+                                        {% endif %}
                                     {% elif qa.question.question_type == 'programming' %}
-                                        <p class="text-muted">参考多种解法，请参考教师反馈。</p>
+                                    <div style="background-color: #f8f9fa; padding: 5px; margin-bottom: 10px; border-radius: 5px;">
+                                        <small>标准答案字段: "{{ qa.question.standard_answer|default('空') }}"</small><br>
+                                        <small>answer_template字段: "{{ qa.question.answer_template|default('空') }}"</small>
+                                    </div>
+                                        {% if qa.question.standard_answer %}
+                                            <pre>{{ qa.question.standard_answer }}</pre>
+                                        {% else %}
+                                            <p class="text-muted">参考多种解法，请参考教师反馈。</p>
+                                        {% endif %}
                                     {% endif %}
+                                </div>
+                                {% else %}
+                                <!-- 添加一个消息，说明何时可以查看答案 -->
+                                <div class="alert alert-info">
+                                    标准答案将在考试结束后 ({{ exam.end_time.strftime('%Y-%m-%d %H:%M') }}) 显示
                                 </div>
                                 {% endif %}
 
@@ -199,8 +255,8 @@
                                 </div>
                                 {% endif %}
 
-                                <!-- 解释 -->
-                                {% if exam.end_time < get_now() and q.question.explanation %}
+                                <!-- 解释 (同样只在考试结束后显示，不在学生提交后显示) -->
+                                {% if exam.end_time < get_now() and qa.question.explanation %}
                                 <div class="explanation mt-3">
                                     <h6 class="font-weight-bold">解析:</h6>
                                     <div class="card">
@@ -213,8 +269,16 @@
                             </div>
                         </div>
                     </div>
-                    <hr>
                     {% endfor %}
+
+                    <!-- 说明部分 -->
+                    <div class="alert alert-info mt-4">
+                        <h6 class="font-weight-bold">说明:</h6>
+                        <ul>
+                            <li>答案和解析在考试结束后显示</li>
+                            <li>{% if not score.is_graded %}当前考试尚未最终评分，部分题目得分可能会有变动{% else %}本考试已完成最终评分{% endif %}</li>
+                        </ul>
+                    </div>
                 </div>
             </div>
         </div>
@@ -226,16 +290,43 @@
 {{ super() }}
 <script>
     $(document).ready(function() {
-        // 初始化代码编辑器（只读模式）
-        $('.code-container').each(function() {
-            const textarea = $(this).find('textarea')[0];
-            const editor = CodeMirror.fromTextArea(textarea, {
-                mode: 'r',
-                theme: 'monokai',
-                lineNumbers: true,
-                readOnly: true
-            });
-        });
+        function initCodeMirror() {
+            if (typeof CodeMirror !== 'undefined') {
+                console.log('初始化CodeMirror编辑器');
+                $('.code-container').each(function() {
+                    const textarea = $(this).find('textarea')[0];
+                    if (textarea) {
+                        try {
+                            const editor = CodeMirror.fromTextArea(textarea, {
+                                mode: 'r',
+                                theme: 'monokai',
+                                lineNumbers: true,
+                                readOnly: true
+                            });
+                        } catch (e) {
+                            console.error('CodeMirror初始化失败:', e);
+                            $(textarea).show();
+                        }
+                    }
+                });
+            } else {
+                console.warn('CodeMirror库未加载，使用默认文本区域显示代码');
+                $('.code-container textarea').show();
+            }
+        }
+
+        // 两种初始化方式：1. 如果已加载则直接初始化 2. 否则等待加载完成事件
+        if (typeof CodeMirror !== 'undefined') {
+            initCodeMirror();
+        } else {
+            document.addEventListener('codemirror-loaded', initCodeMirror);
+            // 设置一个超时，如果5秒后仍未加载，使用默认文本区域
+            setTimeout(function() {
+                if (typeof CodeMirror === 'undefined') {
+                    $('.code-container textarea').show();
+                }
+            }, 5000);
+        }
 
         // 滚动到锚点位置
         if (window.location.hash) {

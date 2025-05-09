@@ -428,11 +428,14 @@ def submit_exam(exam_id):
     # 设置为最终提交
     score.is_final_submit = True
 
-    # 自动评分选择题
-    auto_grade_choice_questions(score)
+    # 自动评分选择题（先移除）
+    # auto_grade_choice_questions(score)
 
-    # 运行R代码评分（编程题）
-    auto_grade_programming_questions(score)
+    # 运行R代码评分（编程题）（先移除）
+    # auto_grade_programming_questions(score)
+
+    # 初始化总分为0，等待评分
+    score.total_score = 0  # 设置初始分数为0
 
     db.session.commit()
 
