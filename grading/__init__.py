@@ -3,3 +3,4 @@
 from grading.auto_grader import AutoGrader
 from grading.choice_grader import ChoiceGrader
 from grading.fill_blank_grader import FillBlankGrader
+from grading.programming_grader import ProgrammingGrader

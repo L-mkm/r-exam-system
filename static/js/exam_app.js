@@ -224,6 +224,13 @@ document.addEventListener('DOMContentLoaded', function() {
         const textarea = document.getElementById('answer_content');
         textarea.value = '';
 
+        // 如果是编程题并且有答案模板，且学生没有已保存的答案，则填充答案模板
+        if (question.question_type === 'programming' &&
+            question.answer_template &&
+            (!question.saved_answer || question.saved_answer.trim() === '')) {
+            textarea.value = question.answer_template;
+        }
+
         // 显示保存按钮
         document.getElementById('save-answer-btn').style.display = 'block';
         document.getElementById('save-status').style.display = 'none';

@@ -7,6 +7,7 @@ from models.student_answer import StudentAnswer
 from models.score import Score
 from grading.choice_grader import ChoiceGrader
 from grading.fill_blank_grader import FillBlankGrader
+from grading.programming_grader import ProgrammingGrader
 
 
 class AutoGrader:
@@ -21,12 +22,15 @@ class AutoGrader:
         """
         self.score_id = score_id
         self.score = Score.query.get(score_id)
+        # 添加编程题评分器
+        self.programming_grader = ProgrammingGrader()
         if not self.score:
             raise ValueError(f"无法找到ID为{score_id}的得分记录")
 
         # 初始化各类型题目的评分器
         self.choice_grader = ChoiceGrader()
         self.fill_blank_grader = FillBlankGrader()
+        self.programming_grader = ProgrammingGrader()
 
         # 日志记录
         current_app.logger.info(f"初始化自动评分，学生ID: {self.score.student_id}, 考试ID: {self.score.exam_id}")
@@ -82,8 +86,12 @@ class AutoGrader:
                 points = self.grade_choice_question(answer, question, question_score)
             elif question.question_type == 'fill_blank':
                 points = self.grade_fill_blank_question(answer, question, question_score)
+            elif question.question_type == 'programming':
+                # 使用编程题评分器
+                points = self.grade_programming_question(answer, question, question_score)
             else:
-                # 编程题暂不在此处理
+                # 未知题型
+                current_app.logger.warning(f"未知题型: {question.question_type}")
                 continue
 
             results['graded'] += 1
@@ -106,3 +114,8 @@ class AutoGrader:
     def grade_fill_blank_question(self, answer, question, max_points):
         """评分填空题"""
         return self.fill_blank_grader.grade(answer, question, max_points)
+
+    # 添加编程题评分方法
+    def grade_programming_question(self, answer, question, max_points):
+        """评分编程题"""
+        return self.programming_grader.grade(answer, question, max_points)
