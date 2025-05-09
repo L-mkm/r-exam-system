@@ -94,13 +94,17 @@
                         {% endif %}
 
                         {% set current_time = get_now() %}
-                        {% if current_time < exam.start_time %}
-                        <span class="badge bg-info">未开始</span>
-                        {% elif current_time > exam.end_time %}
-                        <span class="badge bg-secondary">已结束</span>
-                        {% else %}
-                        <span class="badge bg-danger">进行中</span>
-                        {% endif %}
+                        <span class="exam-status-badge badge"
+                              data-start-time="{{ exam.start_time.strftime('%Y-%m-%d %H:%M:%S') }}"
+                              data-end-time="{{ exam.end_time.strftime('%Y-%m-%d %H:%M:%S') }}">
+                            {% if current_time < exam.start_time %}
+                            未开始
+                            {% elif current_time > exam.end_time %}
+                            已结束
+                            {% else %}
+                            进行中
+                            {% endif %}
+                        </span>
                     </div>
                     <small class="text-muted">创建于: {{ exam.created_at.strftime('%Y-%m-%d') }}</small>
                 </div>
@@ -183,5 +187,44 @@
             });
         });
     });
+
+    // 动态更新考试状态
+    function updateExamStatuses() {
+        const now = new Date();
+
+        // 查找所有考试状态徽章
+        document.querySelectorAll('.exam-status-badge').forEach(badge => {
+            // 获取开始和结束时间
+            const startTime = new Date(badge.getAttribute('data-start-time'));
+            const endTime = new Date(badge.getAttribute('data-end-time'));
+
+            // 根据当前时间确定状态
+            let status, bgClass;
+            if (now < startTime) {
+                status = '未开始';
+                bgClass = 'bg-info';
+            } else if (now > endTime) {
+                status = '已结束';
+                bgClass = 'bg-secondary';
+            } else {
+                status = '进行中';
+                bgClass = 'bg-danger';
+            }
+
+            // 更新显示
+            badge.textContent = status;
+
+            // 移除所有可能的背景类
+            badge.classList.remove('bg-info', 'bg-secondary', 'bg-danger');
+            // 添加正确的背景类
+            badge.classList.add(bgClass);
+        });
+    }
+
+    // 页面加载时更新一次
+    updateExamStatuses();
+
+    // 每分钟更新一次状态
+    setInterval(updateExamStatuses, 60000);
 </script>
 {% endblock %}
