@@ -125,6 +125,16 @@
             <div class="mt-3">
                 <a href="{{ url_for('exams.student_exams') }}" class="btn btn-secondary btn-block">返回考试列表</a>
             </div>
+
+            <!-- 手动评分按钮 -->
+            {% if current_user.is_admin() or current_user.is_teacher() %}
+            <div class="mt-3">
+                <form action="{{ url_for('exams.admin_grade_exam', score_id=score.id) }}" method="post">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-warning btn-block">重新自动评分</button>
+                </form>
+            </div>
+            {% endif %}
         </div>
 
         <!-- 右侧题目详情 -->

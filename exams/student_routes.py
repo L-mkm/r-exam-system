@@ -13,7 +13,7 @@ from forms.student_answer import StudentAnswerForm
 from datetime import datetime, timedelta
 import json
 import r_setup
-
+from grading import AutoGrader
 
 @exams_bp.route('/student/exams')
 @login_required
@@ -422,24 +422,36 @@ def submit_exam(exam_id):
     ).first_or_404()
 
     # 标记为已提交
-    score.is_graded = False  # 等待教师评分
+    score.is_graded = False  # 暂时设为False，等待完全评分
     score.submit_time = datetime.utcnow()
 
     # 设置为最终提交
     score.is_final_submit = True
 
-    # 自动评分选择题（先移除）
-    # auto_grade_choice_questions(score)
+    try:
+        # 使用自动评分系统评分选择题和填空题
+        grader = AutoGrader(score.id)
+        results = grader.grade_all()
 
-    # 运行R代码评分（编程题）（先移除）
-    # auto_grade_programming_questions(score)
+        # 记录评分结果
+        current_app.logger.info(f"自动评分结果: {results}")
 
-    # 初始化总分为0，等待评分
-    score.total_score = 0  # 设置初始分数为0
+        # 更新Flash消息，包含评分信息
+        flash_message = f'考试已提交，自动评分完成！共计得分: {results["points_earned"]}/{results["max_points"]}分。'
+
+        # 如果有编程题未评分，提示教师需手动评分
+        if results['by_type']['programming']['count'] > 0:
+            flash_message += ' 编程题将由教师手动评分。'
+
+        flash(flash_message, 'success')
+    except Exception as e:
+        current_app.logger.error(f"自动评分过程出错: {str(e)}")
+        flash('考试已提交，但自动评分过程出错，请联系教师。', 'warning')
+        # 确保事务可以继续，不会因为评分错误而阻止提交
 
     db.session.commit()
 
-    flash('考试已提交，谢谢参与！', 'success')
+    # flash('考试已提交，谢谢参与！', 'success')
     return redirect(url_for('exams.view_result', exam_id=exam_id))
 
 
@@ -632,3 +644,32 @@ def auto_grade_programming_questions(score):
     ).scalar() or 0
 
     score.total_score = total_points
+
+
+@exams_bp.route('/admin/grade_exam/<int:score_id>', methods=['POST'])
+@login_required
+def admin_grade_exam(score_id):
+    """管理员手动触发自动评分"""
+    # 检查权限 - 只有管理员或教师可以操作
+    if not (current_user.is_admin() or current_user.is_teacher()):
+        flash('权限不足', 'danger')
+        return redirect(url_for('index'))
+
+    # 获取学生得分记录
+    score = Score.query.get_or_404(score_id)
+
+    try:
+        # 使用自动评分系统评分
+        grader = AutoGrader(score.id)
+        results = grader.grade_all()
+
+        # 更新数据库
+        db.session.commit()
+
+        flash(f'自动评分完成！学生得分: {results["points_earned"]}/{results["max_points"]}', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'自动评分失败: {str(e)}', 'danger')
+
+    # 重定向回学生考试结果页面
+    return redirect(url_for('exams.view_result', exam_id=score.exam_id))
