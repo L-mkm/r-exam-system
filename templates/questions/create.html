@@ -333,9 +333,16 @@
       return;
     }
   } else if (questionType === 'programming') {
-    // 编程题情况
-    document.getElementById('standard_answer').value = 'See code template';
-  }
+    // 编程题情况 - 不再强制修改 standard_answer
+    // 如果答案模板有值但标准答案为空，可以复制答案模板到标准答案
+    const answerTemplate = document.getElementById('answer_template').value;
+    const standardAnswer = document.getElementById('standard_answer').value;
+
+    if (answerTemplate && !standardAnswer.trim()) {
+        // 如果答案模板有内容但标准答案为空，将答案模板复制到标准答案
+        document.getElementById('standard_answer').value = answerTemplate;
+    }
+}
 
   // 调整选项名称以符合Flask-WTF格式
   const options = document.querySelectorAll('.option-row');

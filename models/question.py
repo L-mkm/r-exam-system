@@ -63,3 +63,14 @@ class Question(db.Model):
         if not self.is_choice():
             return []
         return [opt for opt in self.options if opt.is_correct]
+
+    @property
+    def effective_standard_answer(self):
+        """
+        获取有效的标准答案
+        - 如果是编程题且标准答案为"See code template"或为空，则返回答案模板
+        - 否则返回标准答案
+        """
+        if self.is_programming() and (not self.standard_answer or self.standard_answer == "See code template"):
+            return self.answer_template or "暂无标准答案"
+        return self.standard_answer or "暂无标准答案"

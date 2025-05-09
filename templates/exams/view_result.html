@@ -191,10 +191,7 @@
                                         {% endif %}
                                     {% elif qa.question.question_type == 'programming' %}
                                         {% if qa.answer and qa.answer.answer_content %}
-                                            <div class="code-container" id="code-{{ question_id }}">
-                                                <!-- 只读模式显示代码 -->
-                                                <textarea readonly>{{ qa.answer.answer_content }}</textarea>
-                                            </div>
+                                            <pre>{{ qa.answer.answer_content }}</pre>
                                         {% else %}
                                             <p class="text-muted">未作答</p>
                                         {% endif %}
@@ -229,10 +226,6 @@
                                             <p class="text-muted">暂无标准答案</p>
                                         {% endif %}
                                     {% elif qa.question.question_type == 'programming' %}
-                                    <div style="background-color: #f8f9fa; padding: 5px; margin-bottom: 10px; border-radius: 5px;">
-                                        <small>标准答案字段: "{{ qa.question.standard_answer|default('空') }}"</small><br>
-                                        <small>answer_template字段: "{{ qa.question.answer_template|default('空') }}"</small>
-                                    </div>
                                         {% if qa.question.standard_answer %}
                                             <pre>{{ qa.question.standard_answer }}</pre>
                                         {% else %}
