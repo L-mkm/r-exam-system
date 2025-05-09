@@ -11,6 +11,9 @@ from models.category import Category
 from forms.exam import ExamForm
 import random
 from datetime import datetime, timedelta
+from models.user import User
+from models.score import Score
+from models.student_answer import StudentAnswer
 
 # 关于session的备注：实在无法兼顾自动保存和取消返回上一次保存的功能，先记下
 
@@ -1257,3 +1260,126 @@ def count_available_questions(category_id=None,
     programming_count = programming_query.count()
 
     return choice_count, fill_blank_count, programming_count
+
+
+@exams_bp.route('/teacher/view_student_result/<int:score_id>')
+@login_required
+def teacher_view_student_result(score_id):
+    """教师查看学生考试结果"""
+    # 检查权限
+    if not (current_user.is_admin() or current_user.is_teacher()):
+        flash('权限不足', 'danger')
+        return redirect(url_for('index'))
+
+    # 获取分数记录
+    score = Score.query.get_or_404(score_id)
+    exam = Exam.query.get_or_404(score.exam_id)
+
+    # 检查教师权限 - 只能查看自己创建的考试
+    if not current_user.is_admin() and exam.creator_id != current_user.id:
+        flash('您没有权限查看此考试结果', 'danger')
+        return redirect(url_for('exams.index'))
+
+    # 获取学生
+    student = User.query.get_or_404(score.student_id)
+
+    # 获取所有答题记录
+    student_answers = StudentAnswer.query.filter_by(score_id=score.id).all()
+
+    # 获取考试题目
+    exam_questions = ExamQuestion.query.filter_by(exam_id=exam.id).order_by(ExamQuestion.order).all()
+
+    # 创建题目和答案的映射
+    question_answers = {}
+    for eq in exam_questions:
+        question = eq.question
+        answer = next((a for a in student_answers if a.question_id == question.id), None)
+        question_answers[question.id] = {
+            'question': question,
+            'exam_question': eq,
+            'answer': answer
+        }
+
+    return render_template('exams/teacher_view_result.html',
+                           exam=exam,
+                           score=score,
+                           student=student,
+                           question_answers=question_answers)
+
+
+@exams_bp.route('/teacher/update_answer_grade/<int:answer_id>', methods=['POST'])
+@login_required
+def update_answer_grade(answer_id):
+    """更新答案得分"""
+    # 检查权限
+    if not (current_user.is_admin() or current_user.is_teacher()):
+        flash('权限不足', 'danger')
+        return redirect(url_for('index'))
+
+    # 获取答案
+    answer = StudentAnswer.query.get_or_404(answer_id)
+    score = Score.query.get_or_404(answer.score_id)
+    exam = Exam.query.get_or_404(score.exam_id)
+
+    # 检查教师权限 - 只能评阅自己创建的考试
+    if not current_user.is_admin() and exam.creator_id != current_user.id:
+        flash('您没有权限评阅此考试', 'danger')
+        return redirect(url_for('exams.index'))
+
+    # 获取表单数据
+    points_earned = request.form.get('points_earned', type=float)
+    feedback = request.form.get('feedback', '')
+
+    # 获取题目最大分值
+    exam_question = ExamQuestion.query.filter_by(
+        exam_id=exam.id,
+        question_id=answer.question_id
+    ).first_or_404()
+
+    # 验证分数
+    if points_earned is None or points_earned < 0:
+        points_earned = 0
+    elif points_earned > exam_question.score:
+        points_earned = exam_question.score
+
+    # 更新答案
+    answer.points_earned = points_earned
+    answer.feedback = feedback
+
+    # 更新总分
+    total_points = db.session.query(db.func.sum(StudentAnswer.points_earned)).filter(
+        StudentAnswer.score_id == score.id
+    ).scalar() or 0
+
+    score.total_score = round(total_points, 2)
+
+    db.session.commit()
+
+    flash('评分已更新', 'success')
+    return redirect(url_for('exams.teacher_view_student_result', score_id=score.id))
+
+
+@exams_bp.route('/teacher/mark_graded/<int:score_id>', methods=['POST'])
+@login_required
+def mark_graded(score_id):
+    """标记评分完成"""
+    # 检查权限
+    if not (current_user.is_admin() or current_user.is_teacher()):
+        flash('权限不足', 'danger')
+        return redirect(url_for('index'))
+
+    # 获取分数记录
+    score = Score.query.get_or_404(score_id)
+    exam = Exam.query.get_or_404(score.exam_id)
+
+    # 检查教师权限 - 只能操作自己创建的考试
+    if not current_user.is_admin() and exam.creator_id != current_user.id:
+        flash('您没有权限操作此考试', 'danger')
+        return redirect(url_for('exams.index'))
+
+    # 标记为已评分
+    score.is_graded = True
+    db.session.commit()
+
+    flash('考试已标记为评分完成', 'success')
+    return redirect(url_for('exams.teacher_view_student_result', score_id=score.id))

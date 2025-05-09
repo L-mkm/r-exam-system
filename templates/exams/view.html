@@ -115,6 +115,53 @@
                     </table>
                 </div>
             </div>
+
+            <!-- 学生成绩列表 (仅对管理员/教师显示) -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">学生成绩</h5>
+                </div>
+                <div class="card-body">
+                    {% if exam.scores %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>学生</th>
+                                    <th>提交时间</th>
+                                    <th>得分</th>
+                                    <th>状态</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for score in exam.scores %}
+                                <tr>
+                                    <td>{{ score.student.username }}</td>
+                                    <td>{{ score.submit_time.strftime('%Y-%m-%d %H:%M') if score.submit_time else '未提交' }}</td>
+                                    <td>{{ score.total_score }}/{{ exam.total_score }}</td>
+                                    <td>
+                                        {% if score.is_graded %}
+                                        <span class="badge bg-success">已评分</span>
+                                        {% elif score.is_final_submit %}
+                                        <span class="badge bg-warning">待评分</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">进行中</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{{ url_for('exams.teacher_view_student_result', score_id=score.id) }}" class="btn btn-sm btn-primary">查看/评分</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted">暂无学生参加此考试</p>
+                    {% endif %}
+                </div>
+            </div>
             {% endif %}
         </div>
     </div>
