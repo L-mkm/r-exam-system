@@ -13,6 +13,7 @@ from flask_wtf.csrf import CSRFProtect
 import os
 from models.db import db  # 导入已存在的SQLAlchemy实例，不要再创建新的
 import json
+from utils import get_beijing_time, to_beijing_time
 
 
 # 第三次修改：创建数据库实例
@@ -49,7 +50,16 @@ def create_app():
     csrf = CSRFProtect()
     csrf.init_app(app)
     app.jinja_env.globals.update(get_now=lambda: datetime.utcnow())
+    app.jinja_env.globals.update(get_beijing_time=get_beijing_time)  # 添加北京时间函数
+    app.jinja_env.globals.update(to_beijing_time=to_beijing_time)
 
+    # 添加考试时间比较函数，使用北京时间函数
+    def exam_time_passed(exam_end_time):
+        """检查考试是否已结束 (考虑北京时间)"""
+        now_local = get_beijing_time()  # 使用您的函数获取北京时间
+        return exam_end_time < now_local
+
+    app.jinja_env.globals.update(exam_time_passed=exam_time_passed)
     # 自定义map过滤器
     def map_attribute(seq, attr=None, attribute=None):
         """映射序列中对象的属性到列表"""

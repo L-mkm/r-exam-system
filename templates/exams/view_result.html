@@ -87,7 +87,7 @@
                     </div>
                     <div class="d-flex justify-content-between mb-2">
                         <span>提交时间:</span>
-                        <span>{{ score.submit_time.strftime('%Y-%m-%d %H:%M') if score.submit_time else '未提交' }}</span>
+                        <span>{{ to_beijing_time(score.submit_time).strftime('%Y-%m-%d %H:%M') if score.submit_time else '未提交' }}</span>
                     </div>
                     <div class="d-flex justify-content-between">
                         <span>评分状态:</span>
@@ -202,10 +202,12 @@
                                 </div>
 
                                 <!-- 标准答案 (只在考试结束后显示，不在学生提交后显示) -->
-                                {% if exam.end_time < get_now() %}
-                                <!-- 添加调试信息 -->
+                                {% if exam_time_passed(exam.end_time) %}
                                 <div style="background-color: #f8f9fa; padding: 5px; margin-bottom: 10px; border-radius: 5px;">
-                                    <small>考试结束时间: {{ exam.end_time.strftime('%Y-%m-%d %H:%M:%S') }}, 当前时间: {{ get_now().strftime('%Y-%m-%d %H:%M:%S') }}</small>
+                                    <small>考试结束时间: {{ exam.end_time.strftime('%Y-%m-%d %H:%M:%S') }},<br>
+                                    当前UTC时间: {{ get_now().strftime('%Y-%m-%d %H:%M:%S') }},<br>
+                                    当前北京时间: {{ get_beijing_time().strftime('%Y-%m-%d %H:%M:%S') }},<br>
+                                    考试是否结束: {{ exam_time_passed(exam.end_time) }}</small>
                                 </div>
 
                                 <div class="standard-answer mb-3">
@@ -256,7 +258,7 @@
                                 {% endif %}
 
                                 <!-- 解释 (同样只在考试结束后显示，不在学生提交后显示) -->
-                                {% if exam.end_time < get_now() and qa.question.explanation %}
+                                {% if exam_time_passed(exam.end_time) and qa.question.explanation %}
                                 <div class="explanation mt-3">
                                     <h6 class="font-weight-bold">解析:</h6>
                                     <div class="card">
