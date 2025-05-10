@@ -577,3 +577,68 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
+
+document.addEventListener('DOMContentLoaded', function() {
+  // 美化题目导航按钮
+  const navButtons = document.querySelectorAll('.question-nav-btn');
+  navButtons.forEach(button => {
+    // 添加初始样式
+    button.classList.add('student-question-nav-btn');
+
+    // 如果问题已回答，添加answered类
+    if (button.classList.contains('btn-success')) {
+      button.classList.add('answered');
+    }
+
+    // 如果当前活跃，添加active类
+    if (button.classList.contains('active')) {
+      button.classList.add('active');
+    }
+  });
+
+  // 设置倒计时动画
+  const timerDisplay = document.querySelector('.student-exam-timer-display');
+  if (timerDisplay) {
+    // 添加脉冲动画效果
+    const remainingSeconds = parseInt(document.getElementById('remaining-time').textContent);
+
+    if (remainingSeconds <= 300) { // 5分钟以内
+      document.getElementById('exam-timer').classList.add('warning');
+    }
+
+    if (remainingSeconds <= 60) { // 1分钟以内
+      document.getElementById('exam-timer').classList.add('danger');
+    }
+  }
+});
+
+// 添加到页面底部脚本，控制工具栏显示/隐藏
+document.addEventListener('DOMContentLoaded', function() {
+  const toolbar = document.querySelector('.student-exam-toolbar');
+
+  // 创建触发区域
+  const trigger = document.createElement('div');
+  trigger.className = 'toolbar-trigger';
+  document.body.appendChild(trigger);
+
+  // 监听鼠标移入底部区域事件
+  trigger.addEventListener('mouseenter', function() {
+    toolbar.classList.add('visible');
+  });
+
+  // 监听工具栏鼠标移入事件
+  toolbar.addEventListener('mouseenter', function() {
+    toolbar.classList.add('visible');
+  });
+
+  // 监听工具栏鼠标移出事件
+  toolbar.addEventListener('mouseleave', function() {
+    // 检查鼠标是否在触发区域内
+    const mouseY = event.clientY;
+    const windowHeight = window.innerHeight;
+
+    if (mouseY < windowHeight - 20) {
+      toolbar.classList.remove('visible');
+    }
+  });
+});

@@ -20,7 +20,9 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/exam.css') }}">
     {% endif %}
 
-    {% if request.endpoint and (request.endpoint.startswith('exams.student_exams') or request.endpoint.startswith('exams.take_exam') or request.endpoint.startswith('exams.view_result')) %}
+    {% if request.endpoint and request.endpoint.startswith('exams.teacher_view_result') %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/exams.css') }}">
+    {% elif request.endpoint and (request.endpoint.startswith('exams.student_exams') or request.endpoint.startswith('exams.take_exam') or request.endpoint.startswith('exams.view_result')) %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/student_exam.css') }}">
     {% endif %}
 

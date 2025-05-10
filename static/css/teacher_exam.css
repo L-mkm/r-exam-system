@@ -1,0 +1,177 @@
+/* teacher_exam.css - 专门用于教师查看学生考试结果页面 */
+
+/* 基础变量定义 */
+:root {
+  --color-darkest: #06141B;
+  --color-dark: #11212D;
+  --color-medium-dark: #253745;
+  --color-medium: #4A5C6A;
+  --color-light-medium: #9BA8AB;
+  --color-light: #CCDOCF;
+
+  --teacher-primary: var(--color-dark);
+  --teacher-accent: #167DA3;
+  --teacher-success: #7cad95;
+  --teacher-warning: #d9bb89;
+  --teacher-danger: #d77a7a;
+
+  --shadow-sm: 0 2px 4px rgba(0,0,0,0.1);
+  --shadow-md: 0 4px 8px rgba(0,0,0,0.15);
+  --radius-md: 8px;
+}
+
+/* 卡片基础样式 */
+.section-card {
+  margin-bottom: 1.5rem;
+  border: none;
+  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transition: box-shadow 0.3s ease;
+}
+
+.section-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.section-card .card-header {
+  background-color: var(--teacher-primary);
+  color: white;
+  padding: 1rem 1.25rem;
+  font-weight: 500;
+}
+
+.section-card .card-header h5 {
+  margin-bottom: 0;
+  font-size: 1.15rem;
+  color: white;
+}
+
+.section-card .card-body {
+  padding: 1.5rem;
+}
+
+/* 结果摘要样式 */
+.student-result-score {
+  font-size: 3.5rem;
+  font-weight: 700;
+  color: var(--teacher-primary);
+  margin-bottom: 0.5rem;
+  line-height: 1.2;
+}
+
+.student-result-percentage {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--teacher-accent);
+  margin-bottom: 1rem;
+}
+
+.student-result-grade {
+  display: inline-block;
+  padding: 0.5rem 1.5rem;
+  font-weight: 600;
+  font-size: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+/* 统计信息容器 */
+.stats-container {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background-color: #f8f9fa;
+  border-radius: var(--radius-md);
+}
+
+.stats-item {
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.stats-label {
+  color: #6c757d;
+  margin-bottom: 0.5rem;
+}
+
+.stats-value {
+  font-weight: 600;
+  color: var(--teacher-accent);
+}
+
+/* 题目导航 */
+.list-group-flush {
+  border-radius: 0;
+}
+
+.list-group-item-action {
+  padding: 0.75rem 1.25rem;
+  transition: background-color 0.2s ease;
+}
+
+.list-group-item-action:hover {
+  background-color: rgba(0,0,0,0.02);
+}
+
+.list-group-item-action .fw-medium {
+  color: #333;
+}
+
+/* 题目详情样式 */
+.student-question-result {
+  margin-bottom: 1.5rem;
+  padding: 1.25rem;
+  border-radius: var(--radius-md);
+  border: 1px solid;
+  border-left-width: 5px;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.student-question-result:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--shadow-sm);
+}
+
+.border-success {
+  border-color: var(--teacher-success) !important;
+}
+
+.border-warning {
+  border-color: var(--teacher-warning) !important;
+}
+
+.border-danger {
+  border-color: var(--teacher-danger) !important;
+}
+
+/* 高亮动画 */
+@keyframes highlight {
+  0% { box-shadow: 0 0 0 0 rgba(22, 125, 163, 0.5); }
+  70% { box-shadow: 0 0 0 10px rgba(22, 125, 163, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(22, 125, 163, 0); }
+}
+
+.highlight-card {
+  animation: highlight 1.5s ease-in-out;
+}
+
+/* 其他样式 */
+pre {
+  max-height: 400px;
+  overflow: auto;
+}
+
+.code-container {
+  background-color: #f8f9fa;
+  border-radius: var(--radius-md);
+  font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+/* 淡入动画 */
+.fade-in {
+  animation: fadeIn 0.5s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

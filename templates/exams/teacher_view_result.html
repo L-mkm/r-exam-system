@@ -205,9 +205,30 @@
                             </div>
                             <div class="card-body">
                                 {% if qa.question.question_type == 'choice' %}
-                                    <!-- 选择题内容 -->
+                                    {% if qa.question.correct_options %}
+                                        <ul class="list-group">
+                                            {% for option in qa.question.correct_options %}
+                                                <li class="list-group-item list-group-item-success">
+                                                    <i class="bi bi-check-circle-fill me-2 text-success"></i>
+                                                    {{ option.content }}
+                                                </li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% else %}
+                                        <div class="alert alert-light">
+                                            <i class="bi bi-info-circle me-2"></i> 暂无标准答案
+                                        </div>
+                                    {% endif %}
                                 {% elif qa.question.question_type == 'fill_blank' %}
-                                    <!-- 填空题内容 -->
+                                    {% if qa.question.standard_answer %}
+                                        <div class="bg-light p-3 rounded">
+                                            <pre class="mb-0 code-container">{{ qa.question.standard_answer }}</pre>
+                                        </div>
+                                    {% else %}
+                                        <div class="alert alert-light">
+                                            <i class="bi bi-info-circle me-2"></i> 暂无标准答案
+                                        </div>
+                                    {% endif %}
                                 {% elif qa.question.question_type == 'programming' %}
                                     {% if qa.question.standard_answer %}
                                         <div class="bg-light p-3 rounded">
