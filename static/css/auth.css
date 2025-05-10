@@ -1,0 +1,140 @@
+/* 登录和注册页面样式 */
+.auth-wrapper {
+  min-height: calc(100vh - 200px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 0;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
+  transition: transform 0.3s ease;
+}
+
+.auth-card:hover {
+  transform: translateY(-5px);
+}
+
+.auth-header {
+  text-align: center;
+  padding: 1.5rem 1.5rem 1rem;
+}
+
+.auth-header h3 {
+  color: white;
+  font-size: 1.75rem;
+  font-weight: 600;
+  margin-bottom: 0;
+}
+
+.auth-body {
+  padding: 2rem 1.5rem;
+}
+
+.auth-footer {
+  text-align: center;
+  padding: 1rem 1.5rem;
+}
+
+.auth-footer a {
+  font-weight: 500;
+  color: var(--color-accent);
+}
+
+/* 表单样式 */
+.auth-form .form-group {
+  margin-bottom: 1.5rem;
+}
+
+.auth-form .form-control {
+  height: auto;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  background-color: #f8f9fa;
+}
+
+.auth-form .form-control:focus {
+  background-color: white;
+}
+
+.auth-form .form-control-label {
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.auth-form .btn {
+  width: 100%;
+  padding: 0.75rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.auth-form .text-danger {
+  font-size: 0.875rem;
+  padding-top: 0.25rem;
+}
+
+/* 动画效果 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.auth-card {
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
+/* 响应式调整 */
+@media (max-width: 767.98px) {
+  .auth-card {
+    margin: 0 1rem;
+  }
+
+  .auth-body {
+    padding: 1.5rem 1.25rem;
+  }
+}
+
+/* 装饰性背景 */
+.auth-background {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, var(--color-dark) 0%, var(--color-darkest) 100%);
+  z-index: -1;
+  opacity: 0.03;
+}
+
+/* 密码强度指示器 */
+.password-strength {
+  height: 5px;
+  border-radius: 2.5px;
+  margin-top: 0.5rem;
+  transition: width 0.3s ease;
+}
+
+.password-strength-weak {
+  width: 33%;
+  background-color: var(--color-danger);
+}
+
+.password-strength-medium {
+  width: 66%;
+  background-color: var(--color-warning);
+}
+
+.password-strength-strong {
+  width: 100%;
+  background-color: var(--color-success);
+}
