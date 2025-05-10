@@ -234,6 +234,35 @@ document.addEventListener('DOMContentLoaded', function() {
         // 显示保存按钮
         document.getElementById('save-answer-btn').style.display = 'block';
         document.getElementById('save-status').style.display = 'none';
+
+        // 检查是否是编程题，如果是，初始化代码编辑器
+        if (question.question_type === 'programming') {
+            // 移除现有的代码编辑器（如果有）
+            const existingEditor = document.querySelector('.r-code-editor');
+            if (existingEditor) {
+                existingEditor.remove();
+            }
+
+            // 显示原始textarea以便填充内容
+            textarea.style.display = 'block';
+
+            // 等待内容填充后再初始化编辑器
+            setTimeout(() => {
+                // 初始化代码编辑器
+                if (window.RCodeEditor && !document.querySelector('.r-code-editor')) {
+                    new window.RCodeEditor({
+                        targetElement: 'answer_content'
+                    });
+                }
+            }, 100);
+        } else {
+            // 如果不是编程题，移除代码编辑器并显示普通文本框
+            const existingEditor = document.querySelector('.r-code-editor');
+            if (existingEditor) {
+                existingEditor.remove();
+            }
+            textarea.style.display = 'block';
+        }
     }
 
     // 填充已保存的答案

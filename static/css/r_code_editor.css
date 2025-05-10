@@ -1,0 +1,164 @@
+/* r_code_editor.css - 为R语言代码编辑器提供样式 */
+.r-code-editor {
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 1.5rem;
+  border: 1px solid #dce1e6;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  background-color: white;
+  transition: all 0.25s ease;
+  width: 100%;
+}
+
+.r-code-editor:focus-within {
+  box-shadow: 0 4px 12px rgba(74, 141, 183, 0.15);
+  border-color: #4A8DB7;
+}
+
+.r-code-editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(to bottom, #2c5d8f, #224970);
+  color: white;
+  padding: 0.75rem 1rem;
+  font-size: 0.9rem;
+}
+
+.r-code-editor-title {
+  display: flex;
+  align-items: center;
+}
+
+.r-code-editor-title i {
+  margin-right: 0.5rem;
+  font-size: 1rem;
+}
+
+.r-code-editor-controls {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.r-code-editor-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  transition: all 0.2s ease;
+}
+
+.r-code-editor-btn:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.r-code-editor-content {
+  position: relative;
+  overflow: hidden; /* 防止内容溢出 */
+  height: 300px; /* 更高的固定高度 */
+}
+
+/* 行号样式 */
+.r-code-line-numbers {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 40px;
+  background-color: #f5f7fa;
+  border-right: 1px solid #e9ecef;
+  padding: 1rem 0;
+  font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+  font-size: 0.9rem;
+  color: #a0aec0;
+  text-align: right;
+  user-select: none;
+  overflow-y: auto;
+  height: 100%;
+}
+
+.r-code-line-number {
+  padding: 0 0.5rem;
+  line-height: 1.5;
+}
+
+/* 为textarea添加适当的padding，以适应行号 */
+.r-code-textarea {
+  width: calc(100% - 40px); /* 减去行号宽度 */
+  height: 100%;
+  padding: 1rem 1rem 1rem 50px;
+  font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #2d3748;
+  border: none;
+  resize: none; /* 禁用手动调整大小 */
+  overflow: auto; /* 允许在需要时滚动 */
+  white-space: pre; /* 保留空格和换行 */
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.r-code-textarea:focus {
+  outline: none;
+}
+
+/* 代码提示样式 */
+.r-code-hints {
+  margin-top: 0;
+  padding: 0.6rem 1rem;
+  font-size: 0.85rem;
+  color: #6c757d;
+  background-color: #f8f9fa;
+  border-top: 1px dashed #e9ecef;
+}
+
+/* R语言关键字高亮样式 */
+.r-function {
+  color: #2196f3;
+}
+
+.r-keyword {
+  color: #9c27b0;
+  font-weight: 500;
+}
+
+.r-string {
+  color: #4caf50;
+}
+
+.r-comment {
+  color: #9e9e9e;
+  font-style: italic;
+}
+
+.r-operator {
+  color: #ff9800;
+}
+
+/* 底部操作区域 */
+.r-code-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background-color: #f8f9fa;
+  border-top: 1px solid #e9ecef;
+}
+
+.r-code-status {
+  font-size: 0.85rem;
+  color: #6c757d;
+}
+
+.r-code-actions {
+  display: flex;
+  gap: 0.5rem;
+}
