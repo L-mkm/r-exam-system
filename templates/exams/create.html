@@ -2,17 +2,21 @@
 
 {% block title %}创建新考试{% endblock %}
 
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/exams.css') }}">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+{% endblock %}
+
 {% block content %}
-<div class="container mt-4">
-    <h1>创建新考试</h1>
+<div class="container mt-4 fade-in">
+    <h1 class="mb-4">创建新考试</h1>
     <form method="post" id="examForm">
         {{ form.csrf_token }}
 
-        <!-- 分为三个主要区域 -->
-        <div class="card mb-4">
-            <!-- 第一区域：基本信息 -->
-            <div class="card-header bg-primary text-white">
-                <h5 class="mb-0">基本信息</h5>
+        <!-- 基本信息区域 -->
+        <div class="card section-card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>基本信息</h5>
             </div>
             <div class="card-body">
                 <!-- 考试标题 -->
@@ -41,7 +45,7 @@
                     {% endif %}
                 </div>
 
-                <!-- 时间设置，添加考试时长选项 -->
+                <!-- 时间设置区域 -->
                 <div class="row mb-3">
                     <div class="col-md-4">
                         {{ form.start_time.label(class="form-label") }}
@@ -55,18 +59,21 @@
                         {% endif %}
                     </div>
 
-                    <!-- 新增：考试时长选项 -->
+                    <!-- 考试时长选项 -->
                     <div class="col-md-4">
                         <div class="form-check mt-4">
                             <input class="form-check-input" type="checkbox" id="use_duration" name="use_duration">
                             <label class="form-check-label" for="use_duration">
-                                使用考试时长
+                                <i class="bi bi-clock me-1"></i>使用考试时长
                             </label>
                         </div>
-                        <div id="duration_container" style="display: none;" class="mt-2">
+                        <div id="duration_container" class="duration-container" style="display: none;">
                             <label for="exam_duration" class="form-label">考试时长（分钟）</label>
-                            <input type="number" class="form-control" id="exam_duration" name="exam_duration"
-                                min="10" value="120">
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="exam_duration" name="exam_duration"
+                                    min="10" value="120">
+                                <span class="input-group-text"><i class="bi bi-hourglass-split"></i></span>
+                            </div>
                         </div>
                     </div>
 
@@ -85,10 +92,10 @@
             </div>
         </div>
 
-        <!-- 第二区域：考试设置 -->
-        <div class="card mb-4">
-            <div class="card-header bg-primary text-white">
-                <h5 class="mb-0">考试设置</h5>
+        <!-- 考试设置区域 -->
+        <div class="card section-card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-gear me-2"></i>考试设置</h5>
             </div>
             <div class="card-body">
                 <!-- 发布设置 -->
@@ -99,33 +106,47 @@
                 </div>
 
                 <!-- 题目统计信息 -->
-                <div class="alert alert-info">
-                    <div class="d-flex justify-content-between">
-                        <span>当前题目数量: <span id="question_count">0</span></span>
-                        <span>预计总分: <span id="total_score">0</span></span>
+                <div class="stats-container">
+                    <div class="stats-row">
+                        <span class="stats-label"><i class="bi bi-list-ol me-1"></i>当前题目数量:</span>
+                        <span class="stats-value" id="question_count">0</span>
                     </div>
-                    <div id="no_questions_warning" class="text-danger mt-2">
-                        请添加题目
+                    <div class="stats-row">
+                        <span class="stats-label"><i class="bi bi-calculator me-1"></i>预计总分:</span>
+                        <span class="stats-value" id="total_score">0</span>
+                    </div>
+                    <div id="no_questions_warning" class="alert alert-warning mt-2 mb-0">
+                        <i class="bi bi-exclamation-triangle me-1"></i>请添加题目
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- 第三区域：操作按钮 -->
-        <div class="card mb-4">
-            <div class="card-header bg-primary text-white">
-                <h5 class="mb-0">操作</h5>
+        <!-- 操作按钮区域 -->
+        <div class="card section-card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-tools me-2"></i>操作</h5>
             </div>
             <div class="card-body">
-                <div class="d-flex justify-content-between">
+                <div class="actions-container">
                     <div>
-                        <button type="button" id="manage_questions_btn" class="btn btn-warning">管理题目</button>
-                        <span id="save_status" class="text-success ms-2" style="display: none;">已自动保存草稿</span>
+                        <button type="button" id="manage_questions_btn" class="btn btn-warning">
+                            <i class="bi bi-list-check me-1"></i>管理题目
+                        </button>
+                        <span id="save_status" class="save-indicator">
+                            <i class="bi bi-check-circle"></i>已自动保存草稿
+                        </span>
                     </div>
                     <div>
-                        <button type="button" id="save_draft_btn" class="btn btn-secondary">保存草稿</button>
-                        <button type="button" id="create_exam_btn" class="btn btn-primary">创建考试</button>
-                        <a href="{{ url_for('exams.index') }}" id="cancel_btn" class="btn btn-outline-danger">取消</a>
+                        <button type="button" id="save_draft_btn" class="btn btn-secondary">
+                            <i class="bi bi-save me-1"></i>保存草稿
+                        </button>
+                        <button type="button" id="create_exam_btn" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-1"></i>创建考试
+                        </button>
+                        <a href="{{ url_for('exams.index') }}" id="cancel_btn" class="btn btn-outline-danger">
+                            <i class="bi bi-x-lg me-1"></i>取消
+                        </a>
                     </div>
                 </div>
             </div>
@@ -133,43 +154,51 @@
     </form>
 
     <!-- 创建考试确认对话框 -->
-    <div class="modal fade" id="createExamModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog">
+    <div class="modal fade confirm-modal" id="createExamModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">确认创建考试</h5>
+                    <h5 class="modal-title"><i class="bi bi-check-circle me-2"></i>确认创建考试</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <div id="exam_summary">
+                    <div class="exam-summary" id="exam_summary">
                         <!-- 这里将通过JavaScript填充考试信息 -->
                     </div>
                     <div id="confirm_warning" class="alert alert-warning mt-3" style="display: none;">
-                        <strong>注意:</strong> 此考试尚未添加题目，确定要继续创建吗？
+                        <i class="bi bi-exclamation-triangle me-1"></i><strong>注意:</strong> 此考试尚未添加题目，确定要继续创建吗？
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                    <button type="button" id="confirm_create_btn" class="btn btn-primary">确认创建</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x me-1"></i>取消
+                    </button>
+                    <button type="button" id="confirm_create_btn" class="btn btn-primary">
+                        <i class="bi bi-check-lg me-1"></i>确认创建
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- 取消编辑确认对话框 -->
-    <div class="modal fade" id="cancelModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog">
+    <div class="modal fade confirm-modal" id="cancelModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">确认取消</h5>
+                    <h5 class="modal-title"><i class="bi bi-exclamation-triangle me-2"></i>确认取消</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <p>确定要取消创建此考试吗？所有已输入的信息将被删除。</p>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">继续编辑</button>
-                    <button type="button" id="confirm_cancel_btn" class="btn btn-danger">确认取消</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-arrow-return-left me-1"></i>继续编辑
+                    </button>
+                    <button type="button" id="confirm_cancel_btn" class="btn btn-danger">
+                        <i class="bi bi-trash me-1"></i>确认取消
+                    </button>
                 </div>
             </div>
         </div>
@@ -178,12 +207,369 @@
 {% endblock %}
 
 {% block scripts %}
-<!-- 与take_exam.html类似的方式放置引用脚本 -->
-<script>
-// 可以在这里定义全局变量传递到JS文件
-const CSRF_TOKEN = "{{ csrf_token() }}";
-</script>
+<!-- 基础库 -->
+<script src="{{ url_for('static', filename='js/notifications.js') }}"></script>
+<script src="{{ url_for('static', filename='js/autosave.js') }}"></script>
 
-<!-- 引入外部JS文件 -->
-<script src="{{ url_for('static', filename='js/exam_create.js') }}"></script>
+<!-- 考试创建相关JS -->
+<script>
+// 全局配置
+const CONFIG = {
+    csrfToken: "{{ csrf_token() }}",
+    examId: "{{ request.args.get('exam_id', '') }}",
+    autoSaveInterval: 30000,  // 30秒
+    endpoints: {
+        saveDraft: "/exams/save_draft",
+        createExam: "/exams/create_ajax",
+        deleteExam: "/exams/",  // 需要拼接ID: /exams/{id}/delete
+        manageQuestions: "/exams/"  // 需要拼接ID: /exams/{id}/questions
+    }
+};
+
+// DOM 元素
+const elements = {
+    form: document.getElementById('examForm'),
+    startTime: document.getElementById('start_time'),
+    endTime: document.getElementById('end_time'),
+    useDuration: document.getElementById('use_duration'),
+    durationContainer: document.getElementById('duration_container'),
+    examDuration: document.getElementById('exam_duration'),
+    saveStatus: document.getElementById('save_status'),
+    saveDraftBtn: document.getElementById('save_draft_btn'),
+    createExamBtn: document.getElementById('create_exam_btn'),
+    manageQuestionsBtn: document.getElementById('manage_questions_btn'),
+    cancelBtn: document.getElementById('cancel_btn'),
+    confirmCreateBtn: document.getElementById('confirm_create_btn'),
+    confirmCancelBtn: document.getElementById('confirm_cancel_btn'),
+    questionCount: document.getElementById('question_count'),
+    totalScore: document.getElementById('total_score'),
+    noQuestionsWarning: document.getElementById('no_questions_warning'),
+    examSummary: document.getElementById('exam_summary'),
+    confirmWarning: document.getElementById('confirm_warning')
+};
+
+// 初始化页面
+document.addEventListener('DOMContentLoaded', () => {
+    // 初始化自动保存系统
+    Autosave.init({
+        interval: CONFIG.autoSaveInterval,
+        statusElementSelector: '#save_status',
+        formSelector: '#examForm',
+        entityId: CONFIG.examId,
+        savingEndpoint: CONFIG.endpoints.saveDraft,
+        tokenName: 'csrf_token',
+        // 保存前收集表单数据
+        onBeforeSave: () => {
+            return {
+                exam_id: CONFIG.examId || '',
+                title: elements.form.querySelector('input[name="title"]').value || '',
+                description: elements.form.querySelector('textarea[name="description"]').value || '',
+                start_time: elements.startTime.value || '',
+                end_time: elements.endTime.value || '',
+                is_published: elements.form.querySelector('input[name="is_published"]').checked || false,
+                use_duration: elements.useDuration.checked || false,
+                exam_duration: elements.examDuration.value || '120',
+                is_draft: true
+            };
+        },
+        // 保存成功后的处理
+        onAfterSave: (data) => {
+            if (data.success && data.exam_id && !CONFIG.examId) {
+                // 更新考试ID
+                CONFIG.examId = data.exam_id;
+
+                // 如果需要，添加隐藏的ID字段
+                if (!elements.form.querySelector('input[name="exam_id"]')) {
+                    const idInput = document.createElement('input');
+                    idInput.type = 'hidden';
+                    idInput.name = 'exam_id';
+                    idInput.value = data.exam_id;
+                    elements.form.appendChild(idInput);
+                }
+            }
+        },
+        // 保存错误处理
+        onSaveError: (error) => {
+            console.error('保存失败:', error);
+            Notify.error('保存失败: ' + (error.message || '未知错误'));
+        }
+    });
+
+    // 设置事件监听器
+    setupEventListeners();
+});
+
+// 设置事件监听器
+function setupEventListeners() {
+    // 考试时长切换
+    if (elements.useDuration) {
+        elements.useDuration.addEventListener('change', function() {
+            if (this.checked) {
+                elements.durationContainer.style.display = 'block';
+                calculateEndTime();
+                elements.endTime.disabled = true;
+            } else {
+                elements.durationContainer.style.display = 'none';
+                elements.endTime.disabled = false;
+            }
+            Autosave.markUnsaved();
+        });
+    }
+
+    // 开始时间变更
+    if (elements.startTime) {
+        elements.startTime.addEventListener('change', function() {
+            if (elements.useDuration && elements.useDuration.checked) {
+                calculateEndTime();
+            }
+            Autosave.markUnsaved();
+        });
+    }
+
+    // 考试时长变更
+    if (elements.examDuration) {
+        elements.examDuration.addEventListener('input', function() {
+            if (elements.useDuration && elements.useDuration.checked) {
+                calculateEndTime();
+            }
+            Autosave.markUnsaved();
+        });
+    }
+
+    // 保存草稿按钮
+    if (elements.saveDraftBtn) {
+        elements.saveDraftBtn.addEventListener('click', function() {
+            Autosave.saveForm(response => {
+                if (response.success) {
+                    Notify.success('草稿已保存');
+                }
+            });
+        });
+    }
+
+    // 创建考试按钮
+    if (elements.createExamBtn) {
+        elements.createExamBtn.addEventListener('click', function() {
+            showCreateExamModal();
+        });
+    }
+
+    // 确认创建按钮
+    if (elements.confirmCreateBtn) {
+        elements.confirmCreateBtn.addEventListener('click', function() {
+            createExam();
+        });
+    }
+
+    // 管理题目按钮
+    if (elements.manageQuestionsBtn) {
+        elements.manageQuestionsBtn.addEventListener('click', function() {
+            // 保存当前表单数据，然后跳转到题目管理页面
+            Autosave.saveForm(response => {
+                if (response.success && response.exam_id) {
+                    window.location.href = `${CONFIG.endpoints.manageQuestions}${response.exam_id}/questions`;
+                } else {
+                    Notify.error('保存失败，无法进入题目管理页面');
+                }
+            });
+        });
+    }
+
+    // 取消按钮 - 使用新的确认对话框
+    if (elements.cancelBtn) {
+        elements.cancelBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+
+            if (Autosave.hasUnsavedChanges()) {
+                // 使用新的对话框
+                Notify.confirm({
+                    title: '确认取消',
+                    message: '您有未保存的更改，确定要放弃吗？',
+                    confirmText: '确认取消',
+                    cancelText: '继续编辑',
+                    type: 'danger'
+                }).then(confirmed => {
+                    if (confirmed) {
+                        // 如果有考试ID，需要删除
+                        if (CONFIG.examId) {
+                            deleteExam(CONFIG.examId);
+                        } else {
+                            // 直接返回列表页
+                            window.location.href = '/exams/';
+                        }
+                    }
+                });
+            } else {
+                // 无更改直接返回
+                window.location.href = '/exams/';
+            }
+        });
+    }
+}
+
+// 根据开始时间和考试时长计算结束时间
+function calculateEndTime() {
+    if (!elements.startTime || !elements.startTime.value) return;
+
+    const startTime = new Date(elements.startTime.value);
+    const durationMinutes = parseInt(elements.examDuration.value) || 120;
+
+    if (!isNaN(startTime.getTime())) {
+        const endTime = new Date(startTime.getTime() + durationMinutes * 60000);
+
+        // 格式化为datetime-local格式: YYYY-MM-DDTHH:MM
+        const year = endTime.getFullYear();
+        const month = String(endTime.getMonth() + 1).padStart(2, '0');
+        const day = String(endTime.getDate()).padStart(2, '0');
+        const hours = String(endTime.getHours()).padStart(2, '0');
+        const minutes = String(endTime.getMinutes()).padStart(2, '0');
+
+        const formattedEndTime = `${year}-${month}-${day}T${hours}:${minutes}`;
+        elements.endTime.value = formattedEndTime;
+
+        // 禁用结束时间输入
+        elements.endTime.disabled = true;
+    }
+}
+
+// 显示创建考试确认对话框
+function showCreateExamModal() {
+    if (!elements.examSummary) return;
+
+    // 准备考试概要信息
+    const title = elements.form.querySelector('input[name="title"]')?.value || '(无标题)';
+    const startTime = elements.startTime?.value ? new Date(elements.startTime.value).toLocaleString() : '(未设置)';
+    const endTime = elements.endTime?.value ? new Date(elements.endTime.value).toLocaleString() : '(未设置)';
+    const isPublished = elements.form.querySelector('input[name="is_published"]')?.checked ? '是' : '否';
+
+    const totalCount = parseInt(elements.questionCount?.textContent) || 0;
+    const totalScore = parseFloat(elements.totalScore?.textContent) || 0;
+
+    // 填充确认对话框中的信息
+    elements.examSummary.innerHTML = `
+        <p><i class="bi bi-pen me-2"></i><strong>考试标题:</strong> ${title}</p>
+        <p><i class="bi bi-calendar-event me-2"></i><strong>开始时间:</strong> ${startTime}</p>
+        <p><i class="bi bi-calendar-check me-2"></i><strong>结束时间:</strong> ${endTime}</p>
+        <p><i class="bi bi-eye me-2"></i><strong>立即发布:</strong> ${isPublished}</p>
+        <p><i class="bi bi-list-ol me-2"></i><strong>题目数量:</strong> ${totalCount}</p>
+        <p><i class="bi bi-calculator me-2"></i><strong>总分值:</strong> ${totalScore}</p>
+    `;
+
+    // 如果没有题目，显示警告但不阻止创建
+    if (elements.confirmWarning) {
+        elements.confirmWarning.style.display = totalCount === 0 ? 'block' : 'none';
+    }
+
+    // 显示模态框
+    const modal = new bootstrap.Modal(document.getElementById('createExamModal'));
+    modal.show();
+}
+
+// 创建考试
+function createExam() {
+    // 确保结束时间输入可用
+    if (elements.endTime) elements.endTime.disabled = false;
+
+    // 收集表单数据
+    const formData = {
+        title: elements.form.querySelector('input[name="title"]').value || '',
+        description: elements.form.querySelector('textarea[name="description"]').value || '',
+        start_time: elements.startTime.value || '',
+        end_time: elements.endTime.value || '',
+        is_published: elements.form.querySelector('input[name="is_published"]').checked || false,
+        use_duration: elements.useDuration.checked || false,
+        exam_duration: elements.examDuration.value || '120'
+    };
+
+    // 如果有考试ID，添加到数据中
+    if (CONFIG.examId) {
+        formData.exam_id = CONFIG.examId;
+    }
+
+    // 禁用自动保存
+    Autosave.stopAutosave();
+
+    // 发送创建请求
+    fetch(CONFIG.endpoints.createExam, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': CONFIG.csrfToken
+        },
+        body: JSON.stringify(formData)
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            // 创建成功，显示通知
+            Notify.success('考试创建成功');
+
+            // 重置未保存状态
+            Autosave.resetState();
+
+            // 跳转到考试详情页面
+            setTimeout(() => {
+                window.location.href = `/exams/${data.exam_id}`;
+            }, 1000);
+        } else {
+            console.error('创建考试失败:', data.message);
+            Notify.error('创建考试失败: ' + (data.message || '未知错误'));
+
+            // 恢复自动保存
+            Autosave.resumeAutosave();
+        }
+    })
+    .catch(error => {
+        console.error('创建请求错误:', error);
+        Notify.error('创建请求失败，请重试');
+
+        // 恢复自动保存
+        Autosave.resumeAutosave();
+    });
+}
+
+// 删除考试
+function deleteExam(examId) {
+    // 禁用自动保存
+    Autosave.stopAutosave();
+
+    fetch(`${CONFIG.endpoints.deleteExam}${examId}/delete`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': CONFIG.csrfToken
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            // 删除成功，跳转到考试列表页
+            window.location.href = '/exams/';
+        } else {
+            console.error('删除考试失败:', data.message);
+            Notify.error('删除考试失败: ' + (data.message || '未知错误'));
+
+            // 恢复自动保存
+            Autosave.resumeAutosave();
+        }
+    })
+    .catch(error => {
+        console.error('删除请求错误:', error);
+        Notify.error('删除请求失败，请重试');
+
+        // 恢复自动保存
+        Autosave.resumeAutosave();
+    });
+}
+</script>
 {% endblock %}
