@@ -3,47 +3,10 @@ import sys
 import tempfile
 import json
 import traceback
-
-def safe_convert_r_output(items):
-    """安全地将R输出转换为Python字符串列表"""
-    result = []
-    for item in items:
-        try:
-            # 尝试直接转换
-            result.append(str(item))
-        except UnicodeDecodeError:
-            try:
-                # 如果UTF-8解码失败，尝试使用GBK或其他常见的中文编码
-                if hasattr(item, 'encode'):
-                    s = str(item.encode('latin1').decode('gbk', errors='replace'))
-                else:
-                    s = f"[编码问题的文本: {repr(item)}]"
-                result.append(s)
-            except Exception:
-                # 最后的备选：添加一个占位符
-                result.append(f"[无法解码的文本]")
-    return result
+import re
 
 # 设置R_HOME环境变量 - 使用正斜杠避免路径问题
 os.environ['R_HOME'] = r'C:\Users\86131\anaconda3\envs\r_exam_env\Lib\R'.replace('\\', '/')
-# 设置R_HOME环境变量 - 使用正斜杠避免路径问题
-os.environ['R_HOME'] = r'C:\Users\86131\anaconda3\envs\r_exam_env\Lib\R'.replace('\\', '/')
-
-# 尝试几种不同的区域设置，看哪个能正常工作
-locale_options = ['Chinese', 'Chinese_China.936', 'C', 'en_US.UTF-8']
-locale_set = False
-
-for locale in locale_options:
-    try:
-        os.environ['LC_ALL'] = locale
-        print(f"尝试设置区域为: {locale}")
-        locale_set = True
-        break
-    except Exception as e:
-        print(f"设置区域 {locale} 失败: {str(e)}")
-
-if not locale_set:
-    print("警告: 无法设置合适的区域")
 
 # 添加区域设置，帮助处理中文
 os.environ['LC_ALL'] = 'Chinese'  # 适用于Windows中文环境
@@ -53,11 +16,54 @@ r_path = r'C:\Users\86131\anaconda3\envs\r_exam_env\Lib\site-packages'.replace('
 if r_path not in sys.path:
     sys.path.append(r_path)
 
-# 调试打印当前环境设置
-print(f"R_HOME设置为: {os.environ.get('R_HOME')}")
-print(f"LC_ALL设置为: {os.environ.get('LC_ALL')}")
-print(f"添加到sys.path: {r_path}")
+# 修复编码问题
+try:
+    import rpy2.robjects as ro
+    from rpy2.rinterface_lib import callbacks
+    import rpy2.rinterface_lib.conversion as conversion
 
+    # 尝试使用不同的编码设置
+    conversion._CCHAR_ENCODING = "latin1"  # 尝试latin1编码而不是UTF-8
+
+    # 增加安全的控制台输出处理
+    original_console_write = callbacks.consolewrite_print
+
+
+    def safe_console_write(buf):
+        try:
+            s = buf.decode('latin1', errors='replace')
+            s = re.sub(r'[^\x20-\x7E\u4e00-\u9fff\s]', '', s)
+            print(f"R[输出]: {s}")
+        except Exception as e:
+            print(f"R输出处理失败: {str(e)}")
+
+
+    callbacks.consolewrite_print = safe_console_write
+
+    # 设置R编码和区域
+    ro.r('Sys.setlocale("LC_ALL", "Chinese")')
+    ro.r('options(encoding="native.enc")')
+    print(f"当前R区域设置: {ro.r('Sys.getlocale()')[0]}")
+
+except Exception as e:
+    print(f"设置编码处理时出错: {str(e)}")
+    traceback.print_exc()
+
+
+def safe_convert_r_output(items):
+    """安全地将R输出转换为Python字符串列表"""
+    result = []
+    for item in items:
+        try:
+            # 尝试使用latin1编码
+            if hasattr(item, 'encode'):
+                s = str(item.encode('latin1', errors='replace').decode('latin1', errors='replace'))
+            else:
+                s = str(item)
+            result.append(s)
+        except Exception as e:
+            result.append(f"[转换错误: {str(e)}]")
+    return result
 
 # 运行R测试代码的函数
 def run_r_test(student_code, test_code, timeout=10):
