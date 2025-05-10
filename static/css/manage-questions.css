@@ -156,7 +156,7 @@
 
 /* 表单输入 */
 .form-control-sm.score-input {
-  width: 70px;
+  width: 120px !important;
   text-align: center;
   margin: 0 auto;
   display: block;
@@ -199,6 +199,117 @@
   border-bottom: 1px solid #e9ecef;
 }
 
+/* 调整筛选按钮的宽度 */
+.filter-buttons .btn,
+#filter_type,
+#filter_difficulty,
+#filter_category {
+  width: 110px; /* 调整为需要的宽度 */
+  text-align: center;
+}
+
 #load_more_container {
   padding: 1rem;
+}
+
+/* 题目详情模态框美化 */
+#questionDetailModal .modal-content {
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+#questionDetailModal .modal-header {
+  background-color: var(--color-dark);
+  padding: 1rem 1.5rem;
+}
+
+#questionDetailModal .modal-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+#questionDetailModal .modal-body {
+  padding: 1.5rem;
+}
+
+/* 选择题样式 */
+.choice-item {
+  padding: 0.75rem;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+  transition: all 0.2s;
+}
+
+.choice-item.correct {
+  background-color: rgba(25, 135, 84, 0.15);
+  border-left: 4px solid var(--color-success);
+}
+
+/* 题目分析区域 */
+.question-analysis {
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 1.5rem;
+  border-left: 4px solid var(--color-accent);
+}
+
+.question-analysis h5 {
+  color: var(--color-accent);
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+
+/* 调整移除按钮 */
+.remove-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+.remove-btn i {
+  font-size: 1.2rem;
+}
+
+/* 分值 */
+.questions-table td:nth-child(5) {
+  min-width: 90px;
+  width: 90px;
+}
+
+.form-control-sm.score-input {
+  width: 90px !important;
+  max-width: 90px !important;
+  min-width: 90px !important;
+  box-sizing: border-box;
+  text-align: center;
+  margin: 0 auto;
+  display: block;
+}
+
+/* 精确定位筛选按钮文字居中 */
+.search-filter-container select,
+.search-filter-container .btn {
+  text-align: center !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* 强制表格标题居中 */
+.questions-table th {
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+/* 标题栏文字居中 */
+.questions-table th:nth-child(1),
+.questions-table th:nth-child(2),
+.questions-table th:nth-child(3),
+.questions-table th:nth-child(4),
+.questions-table th:nth-child(5) {
+  text-align: center !important;
 }
