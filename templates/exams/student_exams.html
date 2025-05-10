@@ -3,11 +3,11 @@
 {% block title %}我的考试{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <h2>我的考试</h2>
+<div class="container mt-4 student-exam-list">
+    <h2 class="mb-4">我的考试</h2>
 
     <!-- 可参加的考试 -->
-    <div class="card mb-4">
+    <div class="student-exam-panel card mb-4">
         <div class="card-header bg-primary text-white">
             <h4 class="mb-0">可参加的考试</h4>
         </div>
@@ -18,26 +18,32 @@
                         <div class="list-group-item list-group-item-action">
                             <div class="d-flex w-100 justify-content-between">
                                 <h5 class="mb-1">{{ exam.title }}</h5>
-                                <small>
+                                <span class="student-exam-status available">
                                     剩余时间: {{ ((exam.end_time - current_time).total_seconds() / 60)|int }} 分钟
-                                </small>
+                                </span>
                             </div>
                             <p class="mb-1">{{ exam.description }}</p>
-                            <div class="d-flex justify-content-between align-items-center mt-2">
-                                <small>考试时间: {{ exam.start_time.strftime('%Y-%m-%d %H:%M') }} 至 {{ exam.end_time.strftime('%Y-%m-%d %H:%M') }}</small>
-                                <a href="{{ url_for('exams.take_exam', exam_id=exam.id) }}" class="btn btn-sm btn-primary">开始考试</a>
+                            <div class="student-exam-meta">
+                                <span><i class="bi bi-calendar"></i>考试时间: {{ exam.start_time.strftime('%Y-%m-%d %H:%M') }} 至 {{ exam.end_time.strftime('%Y-%m-%d %H:%M') }}</span>
+                                <span><i class="bi bi-clock"></i>考试时长: {{ ((exam.end_time - exam.start_time).total_seconds() / 60)|int }} 分钟</span>
+                            </div>
+                            <div class="d-flex justify-content-end mt-3">
+                                <a href="{{ url_for('exams.take_exam', exam_id=exam.id) }}" class="btn btn-start-exam">开始考试</a>
                             </div>
                         </div>
                     {% endfor %}
                 </div>
             {% else %}
-                <p class="text-muted">当前没有可参加的考试</p>
+                <div class="alert alert-light text-center py-4">
+                    <i class="bi bi-info-circle fs-4 d-block mb-3 text-muted"></i>
+                    <p class="text-muted">当前没有可参加的考试</p>
+                </div>
             {% endif %}
         </div>
     </div>
 
     <!-- 即将开始的考试 -->
-    <div class="card mb-4">
+    <div class="student-exam-panel card mb-4">
         <div class="card-header bg-info text-white">
             <h4 class="mb-0">即将开始的考试</h4>
         </div>
@@ -48,23 +54,28 @@
                         <div class="list-group-item list-group-item-action">
                             <div class="d-flex w-100 justify-content-between">
                                 <h5 class="mb-1">{{ exam.title }}</h5>
-                                <small>
+                                <span class="student-exam-status upcoming">
                                     开始时间: {{ exam.start_time.strftime('%Y-%m-%d %H:%M') }}
-                                </small>
+                                </span>
                             </div>
                             <p class="mb-1">{{ exam.description }}</p>
-                            <small>考试时长: {{ ((exam.end_time - exam.start_time).total_seconds() / 60)|int }} 分钟</small>
+                            <div class="student-exam-meta">
+                                <span><i class="bi bi-hourglass-split"></i>考试时长: {{ ((exam.end_time - exam.start_time).total_seconds() / 60)|int }} 分钟</span>
+                            </div>
                         </div>
                     {% endfor %}
                 </div>
             {% else %}
-                <p class="text-muted">当前没有即将开始的考试</p>
+                <div class="alert alert-light text-center py-4">
+                    <i class="bi bi-info-circle fs-4 d-block mb-3 text-muted"></i>
+                    <p class="text-muted">当前没有即将开始的考试</p>
+                </div>
             {% endif %}
         </div>
     </div>
 
     <!-- 已完成的考试 -->
-    <div class="card">
+    <div class="student-exam-panel card">
         <div class="card-header bg-secondary text-white">
             <h4 class="mb-0">已完成的考试</h4>
         </div>
@@ -75,20 +86,25 @@
                         <div class="list-group-item list-group-item-action">
                             <div class="d-flex w-100 justify-content-between">
                                 <h5 class="mb-1">{{ exam.title }}</h5>
-                                <small>
+                                <span class="student-exam-status completed">
                                     完成时间: {{ exam.end_time.strftime('%Y-%m-%d %H:%M') }}
-                                </small>
+                                </span>
                             </div>
                             <p class="mb-1">{{ exam.description }}</p>
-                            <div class="d-flex justify-content-between align-items-center mt-2">
-                                <small>总分值: {{ exam.total_score }}</small>
-                                <a href="{{ url_for('exams.view_result', exam_id=exam.id) }}" class="btn btn-sm btn-secondary">查看结果</a>
+                            <div class="student-exam-meta">
+                                <span><i class="bi bi-award"></i>总分值: {{ exam.total_score }}</span>
+                            </div>
+                            <div class="d-flex justify-content-end mt-3">
+                                <a href="{{ url_for('exams.view_result', exam_id=exam.id) }}" class="btn btn-outline-secondary">查看结果</a>
                             </div>
                         </div>
                     {% endfor %}
                 </div>
             {% else %}
-                <p class="text-muted">当前没有已完成的考试</p>
+                <div class="alert alert-light text-center py-4">
+                    <i class="bi bi-info-circle fs-4 d-block mb-3 text-muted"></i>
+                    <p class="text-muted">当前没有已完成的考试</p>
+                </div>
             {% endif %}
         </div>
     </div>

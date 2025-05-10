@@ -10,127 +10,155 @@
     <div class="row">
         <!-- 左侧考试信息和题目导航 -->
         <div class="col-md-3">
-            <div class="card mb-4">
-                <div class="card-header">考试信息</div>
-                <div class="card-body">
-                    <h5>{{ exam.title }}</h5>
-                    <p class="text-muted">{{ exam.description|default('无描述') }}</p>
-                    <p><strong>总分值:</strong> {{ exam.total_score }}</p>
-                    <p><strong>开始时间:</strong> {{ exam.start_time.strftime('%Y-%m-%d %H:%M') }}</p>
-                    <p><strong>结束时间:</strong> {{ exam.end_time.strftime('%Y-%m-%d %H:%M') }}</p>
+            <div class="student-exam-sidebar">
+                <div class="card mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">考试信息</h5>
+                    </div>
+                    <div class="card-body">
+                        <h5 class="fw-bold">{{ exam.title }}</h5>
+                        <p class="text-muted">{{ exam.description|default('无描述') }}</p>
+                        <div class="mt-3">
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>总分值:</span>
+                                <span class="fw-bold">{{ exam.total_score }}</span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>开始时间:</span>
+                                <span>{{ exam.start_time.strftime('%Y-%m-%d %H:%M') }}</span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>结束时间:</span>
+                                <span>{{ exam.end_time.strftime('%Y-%m-%d %H:%M') }}</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            </div>
 
-            <div class="card mb-4">
-                <div class="card-header bg-info text-white">
-                    <h5 class="mb-0">考试倒计时</h5>
-                </div>
-                <div class="card-body text-center">
-                    <!-- 保留原始元素，但隐藏 -->
-                    <span id="remaining-time" style="display: none;">{{ remaining_seconds }}</span>
-                    <div id="exam-timer" class="alert alert-info">
-                        <h3 id="timer-display" class="mb-0">
-                            <span id="hours">00</span>:<span id="minutes">00</span>:<span id="seconds">00</span>
-                        </h3>
-                        <small class="text-muted">剩余时间</small>
+                <div class="card mb-4">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">考试倒计时</h5>
                     </div>
-                    <div id="exam-timer-warning" class="alert alert-danger" style="display: none;">
-                        <strong>注意：</strong> 考试时间即将结束！
+                    <div class="card-body p-0">
+                        <!-- 保留原始元素，但隐藏 -->
+                        <span id="remaining-time" style="display: none;">{{ remaining_seconds }}</span>
+                        <div id="exam-timer" class="student-exam-timer">
+                            <div class="student-exam-timer-display">
+                                <span id="hours">00</span>:<span id="minutes">00</span>:<span id="seconds">00</span>
+                            </div>
+                            <div class="student-exam-timer-label">剩余时间</div>
+                        </div>
+                        <div id="exam-timer-warning" class="alert alert-danger m-3" style="display: none;">
+                            <strong>注意：</strong> 考试时间即将结束！
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="card">
-                <div class="card-header">题目导航</div>
-                <div class="card-body">
-                    <div class="question-nav">
-                        {% for eq in exam_questions %}
-                        <button
-                            class="btn btn-outline-secondary mb-2 question-nav-btn"
-                            data-question-id="{{ eq.question_id }}"
-                            id="nav-question-{{ eq.question_id }}">
-                            {{ eq.order }}.
-                            {% if eq.question.question_type == 'choice' %}
-                                选择题
-                            {% elif eq.question.question_type == 'fill_blank' %}
-                                填空题
-                            {% elif eq.question.question_type == 'programming' %}
-                                编程题
-                            {% endif %}
-                        </button>
-                        {% endfor %}
+                <div class="card">
+                    <div class="card-header bg-secondary text-white">
+                        <h5 class="mb-0">题目导航</h5>
                     </div>
-                    <div class="mt-3">
-                        <span class="badge bg-success me-2">已回答</span>
-                        <span class="badge bg-secondary">未回答</span>
+                    <div class="card-body p-0">
+                        <div class="student-question-nav">
+                            {% for eq in exam_questions %}
+                            <button
+                                class="student-question-nav-btn question-nav-btn"
+                                data-question-id="{{ eq.question_id }}"
+                                id="nav-question-{{ eq.question_id }}">
+                                {{ eq.order }}
+                            </button>
+                            {% endfor %}
+                        </div>
+                        <div class="p-3 border-top">
+                            <div class="d-flex align-items-center mb-2">
+                                <span class="student-question-status correct"></span>
+                                <span>已回答</span>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <span class="student-question-status incorrect"></span>
+                                <span>未回答</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="mt-3">
-                <form id="submit-exam-form" method="post" action="{{ url_for('exams.submit_exam', exam_id=exam.id) }}">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" class="btn btn-danger btn-lg w-100">提交考试</button>
-                </form>
+                <div class="mt-3">
+                    <form id="submit-exam-form" method="post" action="{{ url_for('exams.submit_exam', exam_id=exam.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-danger btn-lg w-100">提交考试</button>
+                    </form>
+                </div>
             </div>
         </div>
 
         <!-- 右侧题目内容 -->
         <div class="col-md-9">
-            <div class="card">
+            <div class="student-exam-content">
                 <div class="card-header">
                     <div class="d-flex justify-content-between align-items-center">
-                        <h5 id="question-title">请从左侧选择题目</h5>
-                        <div>
-                            <span id="question-type-badge" class="badge bg-primary"></span>
-                            <span id="question-score-badge" class="badge bg-info ms-2"></span>
+                        <h5 id="question-title" class="student-question-title mb-0">请从左侧选择题目</h5>
+                        <div class="student-question-meta">
+                            <span id="question-type-badge" class="student-question-badge type"></span>
+                            <span id="question-score-badge" class="student-question-badge score"></span>
                         </div>
                     </div>
                 </div>
-                <div class="card-body">
-                    <!-- 当前题目内容 -->
-                    <div id="question-content-container">
-                        <p class="text-center text-muted">请从左侧选择一道题目开始答题</p>
-                    </div>
 
-                    <!-- 选择题选项 -->
-                    <div id="options-container" class="mt-3" style="display: none;">
-                        <div id="options-list"></div>
-                    </div>
-
-                    <!-- 填空题和编程题回答区域 -->
-                    <div id="answer-container" class="mt-3" style="display: none;">
-                        <form id="answer-form">
-                            <input type="hidden" id="question_id" name="question_id">
-                            <input type="hidden" id="score_id" name="score_id" value="{{ score_id }}">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <div class="form-group">
-                                <label for="answer_content">您的答案:</label>
-                                <textarea class="form-control" id="answer_content" name="answer_content" rows="8"></textarea>
-                            </div>
-                            <button type="button" id="save-answer-btn" class="btn btn-primary mt-2">保存答案</button>
-                            <span id="save-status" class="ms-2 text-success" style="display: none;">已保存</span>
-                        </form>
+                <!-- 当前题目内容 -->
+                <div id="question-content-container" class="student-question-content mt-4">
+                    <div class="text-center text-muted py-5">
+                        <i class="bi bi-arrow-left-circle fs-3 mb-3"></i>
+                        <p>请从左侧选择一道题目开始答题</p>
                     </div>
                 </div>
-            </div>
 
-            <!-- 答题导航按钮 -->
-            <div class="d-flex justify-content-between mt-3">
-                <button id="prev-question-btn" class="btn btn-secondary" disabled>上一题</button>
-                <button id="next-question-btn" class="btn btn-primary" disabled>下一题</button>
+                <!-- 选择题选项 -->
+                <div id="options-container" class="student-choice-list mt-4" style="display: none;">
+                    <div id="options-list"></div>
+                </div>
+
+                <!-- 填空题和编程题回答区域 -->
+                <div id="answer-container" class="student-answer-container mt-4" style="display: none;">
+                    <form id="answer-form">
+                        <input type="hidden" id="question_id" name="question_id">
+                        <input type="hidden" id="score_id" name="score_id" value="{{ score_id }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <div class="form-group">
+                            <label for="answer_content" class="form-label">您的答案:</label>
+                            <textarea class="form-control" id="answer_content" name="answer_content" rows="8"></textarea>
+                        </div>
+                        <div class="mt-3">
+                            <button type="button" id="save-answer-btn" class="student-save-btn btn">保存答案</button>
+                            <span id="save-status" class="student-save-status" style="display: none;"><i class="bi bi-check-circle"></i> 已保存</span>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- 答题导航按钮 -->
+                <div class="student-question-navigation">
+                    <button id="prev-question-btn" class="student-nav-btn prev btn btn-light" disabled>
+                        <span class="icon">←</span> 上一题
+                    </button>
+                    <button id="next-question-btn" class="student-nav-btn next btn btn-primary" disabled>
+                        下一题 <span class="icon">→</span>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
-    <div class="fixed-bottom bg-light py-2 border-top" style="box-shadow: 0 -2px 10px rgba(0,0,0,0.1);">
-        <div class="container d-flex justify-content-between align-items-center">
-            <div>
-                <span id="save-status-indicator">自动保存: <span class="badge badge-secondary">就绪</span></span>
-                <small id="last-save-time" class="text-muted ml-2"></small>
-            </div>
-            <div>
-                <button type="button" id="global-save-button" class="btn btn-outline-primary mr-2">保存所有答案</button>
-                <button type="button" id="global-submit-button" class="btn btn-danger">提交考试</button>
+
+    <div class="student-exam-toolbar">
+        <div class="container">
+            <div class="student-exam-toolbar-content">
+                <div class="student-toolbar-status">
+                    <span class="status-dot saved" id="save-indicator"></span>
+                    <span id="save-status-indicator">自动保存: <span class="badge bg-secondary">就绪</span></span>
+                    <small id="last-save-time" class="text-muted ms-2"></small>
+                </div>
+                <div class="student-toolbar-actions">
+                    <button type="button" id="global-save-button" class="student-toolbar-btn btn btn-outline-primary">保存所有答案</button>
+                    <button type="button" id="global-submit-button" class="student-toolbar-btn student-submit-btn btn">提交考试</button>
+                </div>
             </div>
         </div>
     </div>
@@ -153,6 +181,9 @@ const EXAM_QUESTIONS = [
 ];
 const CSRF_TOKEN = "{{ csrf_token() }}";
 </script>
+
+<!-- 引入Bootstrap图标库 -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.0/font/bootstrap-icons.css">
 
 <!-- 引入外部JS文件 -->
 <script src="{{ url_for('static', filename='js/exam_app.js') }}"></script>
@@ -275,6 +306,54 @@ function addEmergencySubmitButton(examId) {
                 // 表单提交
                 document.getElementById('submit-exam-form').submit();
             }
+        }
+    });
+
+    // 添加样式修改函数，用于支持新的CSS类
+    document.addEventListener('DOMContentLoaded', function() {
+        // 修改计时器样式
+        const examTimer = document.getElementById('exam-timer');
+
+        // 修改题目导航按钮点击事件，添加active类
+        const navButtons = document.querySelectorAll('.question-nav-btn');
+        navButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                navButtons.forEach(btn => btn.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+
+        // 修改选择题选项样式
+        function enhanceChoiceItems() {
+            const choiceItems = document.querySelectorAll('.option-checkbox');
+            choiceItems.forEach(item => {
+                const parentElement = item.closest('.form-check');
+                if (parentElement) {
+                    parentElement.classList.add('student-choice-item');
+                }
+
+                item.addEventListener('change', function() {
+                    if (this.checked) {
+                        parentElement.classList.add('selected');
+                    } else {
+                        parentElement.classList.remove('selected');
+                    }
+                });
+            });
+        }
+
+        // 监听DOM变化，为动态添加的选项添加样式
+        const observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                if (mutation.addedNodes.length) {
+                    enhanceChoiceItems();
+                }
+            });
+        });
+
+        const optionsList = document.getElementById('options-list');
+        if (optionsList) {
+            observer.observe(optionsList, { childList: true, subtree: true });
         }
     });
 </script>
