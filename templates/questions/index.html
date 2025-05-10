@@ -2,6 +2,10 @@
 
 {% block title %}题库管理{% endblock %}
 
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/questions.css') }}">
+{% endblock %}
+
 {% block content %}
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -12,7 +16,7 @@
     </div>
 
     <!-- 搜索表单 -->
-    <div class="card mb-4">
+    <div class="card search-card mb-4 fade-in">
         <div class="card-header">
             <h5 class="card-title mb-0">搜索题目</h5>
         </div>
@@ -20,29 +24,29 @@
             <form method="get" action="{{ url_for('questions.index') }}">
                 <div class="row">
                     <div class="col-md-4 mb-3">
-                        {{ search_form.keyword.label }}
+                        {{ search_form.keyword.label(class="form-label") }}
                         {{ search_form.keyword(class="form-control") }}
                     </div>
                     <div class="col-md-4 mb-3">
-                        {{ search_form.question_type.label }}
+                        {{ search_form.question_type.label(class="form-label") }}
                         {{ search_form.question_type(class="form-control") }}
                     </div>
                     <div class="col-md-4 mb-3">
-                        {{ search_form.category_id.label }}
+                        {{ search_form.category_id.label(class="form-label") }}
                         {{ search_form.category_id(class="form-control") }}
                     </div>
                 </div>
                 <div class="row">
                     <div class="col-md-4 mb-3">
-                        {{ search_form.tag.label }}
+                        {{ search_form.tag.label(class="form-label") }}
                         {{ search_form.tag(class="form-control") }}
                     </div>
                     <div class="col-md-4 mb-3">
-                        {{ search_form.difficulty_min.label }}
+                        {{ search_form.difficulty_min.label(class="form-label") }}
                         {{ search_form.difficulty_min(class="form-control") }}
                     </div>
                     <div class="col-md-4 mb-3">
-                        {{ search_form.difficulty_max.label }}
+                        {{ search_form.difficulty_max.label(class="form-label") }}
                         {{ search_form.difficulty_max(class="form-control") }}
                     </div>
                 </div>
@@ -56,18 +60,18 @@
     <div class="row">
         {% for question in questions %}
         <div class="col-md-6 mb-4">
-            <div class="card h-100">
+            <div class="card question-card h-100 fade-in" style="animation-delay: {{ loop.index0 * 0.05 }}s">
                 <div class="card-header d-flex justify-content-between">
                     <div>
                         {% if question.is_choice() %}
-                        <span class="badge bg-primary">选择题</span>
+                        <span class="badge badge-choice">选择题</span>
                         {% elif question.is_fill_blank() %}
-                        <span class="badge bg-success">填空题</span>
+                        <span class="badge badge-fill">填空题</span>
                         {% elif question.is_programming() %}
-                        <span class="badge bg-warning">编程题</span>
+                        <span class="badge badge-programming">编程题</span>
                         {% endif %}
-                        <span class="badge bg-info">难度: {{ question.difficulty }}</span>
-                        <span class="badge bg-secondary">{{ question.score_default }}分</span>
+                        <span class="badge badge-difficulty">难度: {{ question.difficulty }}</span>
+                        <span class="badge badge-score">{{ question.score_default }}分</span>
                     </div>
                     <small class="text-muted">{{ question.created_at.strftime('%Y-%m-%d') }}</small>
                 </div>
@@ -77,7 +81,7 @@
 
                     {% if question.category %}
                     <div class="mb-2">
-                        <small class="text-muted">分类: {{ question.category.name }}</small>
+                        <small class="text-muted">分类: <span class="badge badge-category">{{ question.category.name }}</span></small>
                     </div>
                     {% endif %}
 
@@ -85,7 +89,7 @@
                     <div class="mb-2">
                         <small class="text-muted">标签:
                             {% for tag in question.tags %}
-                            <span class="badge bg-light text-dark">{{ tag.name }}</span>
+                            <span class="badge badge-tag">{{ tag.name }}</span>
                             {% endfor %}
                         </small>
                     </div>
@@ -123,7 +127,7 @@
         </div>
         {% else %}
         <div class="col-12">
-            <div class="alert alert-info">
+            <div class="alert alert-info fade-in">
                 没有找到符合条件的题目
             </div>
         </div>
@@ -132,7 +136,7 @@
 
     <!-- 分页 -->
     {% if pagination.pages > 1 %}
-    <nav aria-label="Page navigation">
+    <nav aria-label="Page navigation" class="mt-4">
         <ul class="pagination justify-content-center">
             {% if pagination.has_prev %}
             <li class="page-item">

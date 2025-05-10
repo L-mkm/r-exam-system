@@ -1,5 +1,9 @@
 {% extends "base.html" %}
 
+{% block title %}编辑题目{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/questions.css') }}">
 <style>
   /* 隐藏选项标签 */
   #optionsContainer > label,
@@ -9,13 +13,15 @@
     display: none;
   }
 </style>
-
-{% block title %}编辑题目{% endblock %}
+{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
-    <h1>编辑题目</h1>
-    <div class="card">
+    <h1 class="mb-4">编辑题目</h1>
+    <div class="card question-form fade-in">
+        <div class="card-header">
+            <h5 class="card-title mb-0">题目信息</h5>
+        </div>
         <div class="card-body">
             <form method="post" enctype="multipart/form-data">
                 {{ form.csrf_token }}
@@ -23,7 +29,7 @@
                 <!-- 基本信息 -->
                 <div class="row mb-3">
                     <div class="col-md-8">
-                        <div class="mb-3">
+                        <div class="form-group">
                             {{ form.title.label(class="form-label") }}
                             {{ form.title(class="form-control") }}
                             {% if form.title.errors %}
@@ -36,7 +42,7 @@
                         </div>
                     </div>
                     <div class="col-md-4">
-                        <div class="mb-3">
+                        <div class="form-group">
                             {{ form.question_type.label(class="form-label") }}
                             {{ form.question_type(class="form-control", disabled=True) }}
                             <small class="text-muted">题目类型无法修改</small>
@@ -53,7 +59,7 @@
 
                 <div class="row mb-3">
                     <div class="col-md-4">
-                        <div class="mb-3">
+                        <div class="form-group">
                             {{ form.category_id.label(class="form-label") }}
                             {{ form.category_id(class="form-control") }}
                             {% if form.category_id.errors %}
@@ -66,7 +72,7 @@
                         </div>
                     </div>
                     <div class="col-md-4">
-                        <div class="mb-3">
+                        <div class="form-group">
                             {{ form.difficulty.label(class="form-label") }}
                             {{ form.difficulty(class="form-control") }}
                             {% if form.difficulty.errors %}
@@ -79,7 +85,7 @@
                         </div>
                     </div>
                     <div class="col-md-4">
-                        <div class="mb-3">
+                        <div class="form-group">
                             {{ form.score_default.label(class="form-label") }}
                             {{ form.score_default(class="form-control") }}
                             {% if form.score_default.errors %}
@@ -93,13 +99,13 @@
                     </div>
                 </div>
 
-                <div class="mb-3 form-check">
+                <div class="form-group mb-3 form-check">
                     {{ form.is_public(class="form-check-input") }}
                     {{ form.is_public.label(class="form-check-label") }}
                     <small class="text-muted">勾选后其他教师可以查看此题</small>
                 </div>
 
-                <div class="mb-3">
+                <div class="form-group mb-3">
                     {{ form.tags.label(class="form-label") }}
                     {{ form.tags(class="form-control") }}
                     <small class="text-muted">多个标签请用逗号分隔</small>
@@ -112,7 +118,7 @@
                     {% endif %}
                 </div>
 
-                <div class="mb-3">
+                <div class="form-group mb-3">
                     {{ form.content.label(class="form-label") }}
                     {{ form.content(class="form-control", rows=5) }}
                     {% if form.content.errors %}
@@ -127,7 +133,7 @@
                 <!-- 选择题选项 -->
                 {% if question.is_choice() %}
                 <div id="choiceOptions" class="mb-3">
-                    <h5>选择题选项</h5>
+                    <h5 class="section-title">选择题选项</h5>
                     <div id="optionsContainer">
 
                         {% for option in form.options %}
@@ -157,8 +163,8 @@
                 <!-- 填空题答案 -->
                 {% if question.is_fill_blank() %}
                 <div id="fillBlankAnswer" class="mb-3">
-                    <h5>填空题答案</h5>
-                    <div class="mb-3">
+                    <h5 class="section-title">填空题答案</h5>
+                    <div class="form-group mb-3">
                         {{ form.standard_answer.label(class="form-label") }}
                         {{ form.standard_answer(class="form-control") }}
                         <small class="text-muted">填空题的标准答案</small>
@@ -176,10 +182,10 @@
                 <!-- 编程题参考答案和测试用例 -->
                 {% if question.is_programming() %}
                 <div id="programmingDetails" class="mb-3">
-                    <h5>编程题设置</h5>
-                    <div class="mb-3">
+                    <h5 class="section-title">编程题设置</h5>
+                    <div class="form-group mb-3">
                         {{ form.answer_template.label(class="form-label") }}
-                        {{ form.answer_template(class="form-control", rows=5) }}
+                        {{ form.answer_template(class="form-control code-block", rows=5) }}
                         <small class="text-muted">提供参考R代码模板（学生答题时将看到此模板）</small>
                         {% if form.answer_template.errors %}
                         <div class="text-danger">
@@ -190,9 +196,9 @@
                         {% endif %}
                     </div>
 
-                    <div class="mb-3">
+                    <div class="form-group mb-3">
                         {{ form.reference_answer.label(class="form-label") }}
-                        {{ form.reference_answer(class="form-control", rows=5) }}
+                        {{ form.reference_answer(class="form-control code-block", rows=5) }}
                         <small class="text-muted">参考答案（选填，考试结束后学生可见，不影响自动评分）</small>
                         {% if form.reference_answer.errors %}
                         <div class="text-danger">
@@ -203,15 +209,15 @@
                         {% endif %}
                     </div>
 
-                    <div class="mb-3">
+                    <div class="form-group mb-3">
                         {{ form.template_id.label(class="form-label") }}
                         {{ form.template_id(class="form-control", id="template_selector") }}
                         <small class="text-muted">选择预设测试代码模板</small>
                     </div>
 
-                    <div class="mb-3">
+                    <div class="form-group mb-3">
                         {{ form.test_code.label(class="form-label") }}
-                        {{ form.test_code(class="form-control", rows=5, id="test_code_area") }}
+                        {{ form.test_code(class="form-control code-block", rows=5, id="test_code_area") }}
                         <small class="text-muted">编写用于测试学生代码的R脚本（可在模板基础上修改）</small>
                         {% if form.test_code.errors %}
                         <div class="text-danger">
@@ -225,7 +231,7 @@
                 {% endif %}
 
                 <!-- 解析 -->
-                <div class="mb-3">
+                <div class="form-group mb-3">
                     {{ form.explanation.label(class="form-label") }}
                     {{ form.explanation(class="form-control", rows=3) }}
                     <small class="text-muted">题目解析（学生提交后或考试结束后可见）</small>
@@ -238,7 +244,7 @@
                     {% endif %}
                 </div>
 
-                <div class="text-center">
+                <div class="text-center mt-4">
                     <button type="submit" class="btn btn-primary">保存修改</button>
                     <a href="{{ url_for('questions.view', id=question.id) }}" class="btn btn-secondary">取消</a>
                 </div>
