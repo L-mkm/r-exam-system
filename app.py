@@ -2,6 +2,7 @@
 # 1.第一次修改：增加render_template，方便后续接入index.html
 # 2.第二次修改：增加request, redirect, url_for
 # 3.第四次修改：增加flash
+import r_setup
 from flask import Flask, render_template, request, redirect, url_for, flash
 # 第三次修改：
 # 第四次修改：数据库实例重复，删除了下面这列
