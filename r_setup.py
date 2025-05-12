@@ -6,6 +6,9 @@ import json
 import traceback
 import logging
 import subprocess
+import rpy2.robjects as ro
+from rpy2.robjects import pandas2ri
+from rpy2.robjects.conversion import localconverter
 
 # 配置日志记录
 logging.basicConfig(level=logging.INFO,
@@ -257,301 +260,75 @@ class RLowLevelInterface:
 
 
 # 主要的R代码测试函数
-def run_r_test(student_code, test_code, timeout=10, required_packages=None):
-    """
-    使用rpy2运行R测试代码评估学生代码
-
-    Args:
-        student_code (str): 学生提交的R代码
-        test_code (str): 测试用例代码
-        timeout (int): 执行超时时间(秒)
-        required_packages (list): 需要的R包列表
-
-    Returns:
-        dict: 包含测试结果的字典
-    """
-    logger.info("======= 开始执行R测试 =======")
-    logger.info(f"学生代码长度: {len(student_code)} 字符")
-    logger.info(f"测试代码长度: {len(test_code)} 字符")
-
-    if required_packages:
-        logger.info(f"需要的R包: {', '.join(required_packages)}")
-
+def run_r_test(student_code, test_code):
+    """运行R代码测试，返回测试结果"""
     try:
-        # 导入rpy2模块
-        import rpy2.robjects as ro
-        from rpy2.robjects.packages import importr
+        # 初始化R环境
+        logger.info("初始化R环境...")
 
-        # 记录R版本
-        logger.info(f"R版本: {ro.r('R.version.string')[0]}")
+        # 使用localconverter确保转换规则的上下文正确传递
+        with localconverter(ro.default_converter):
+            # 激活pandas到R的转换
+            pandas2ri.activate()
 
-        # 导入基础包
-        base = importr('base')
-        utils = importr('utils')
+            # 创建一个新的R环境用于学生代码
+            student_env = ro.r('new.env()')
 
-        # 导入所需的包
-        if required_packages:
-            for package in required_packages:
-                try:
-                    logger.info(f"导入R包: {package}")
-                    importr(package)
-                except Exception as e:
-                    logger.warning(f"导入R包 {package} 失败: {str(e)}")
-                    try:
-                        # 尝试安装包
-                        logger.info(f"尝试安装R包: {package}")
-                        utils.install_packages(package, repos="https://cloud.r-project.org")
-                        importr(package)
-                        logger.info(f"成功安装并导入R包: {package}")
-                    except Exception as e:
-                        logger.error(f"安装R包 {package} 失败: {str(e)}")
+            # 将环境变量传递给R
+            ro.globalenv['student_env'] = student_env
 
-        # 设置R编码选项和区域
-        ro.r('options(encoding="native.enc")')
-        ro.r('Sys.setlocale("LC_ALL", "C")')  # 使用C区域设置，避免编码问题
-        logger.info(f"当前R区域设置: {ro.r('Sys.getlocale()')[0]}")
+            # 执行学生代码
+            ro.r(f"""
+            tryCatch({{
+                # 在学生环境中执行代码
+                eval(parse(text = {ro.StrVector([student_code])}), envir = student_env)
+            }}, error = function(e) {{
+                # 返回错误信息
+                print(paste("学生代码执行错误:", e$message))
+                stop(e$message)
+            }})
+            """)
 
-        # 设置超时
-        ro.r(f'options(timeout={timeout})')
+            # 执行测试代码
+            result = ro.r(f"""
+            tryCatch({{
+                # 执行测试代码
+                eval(parse(text = {ro.StrVector([test_code])}))
 
-        # 创建临时环境
-        ro.r('student_env <- new.env()')
+                # 测试代码应该设置一个名为test_result的列表
+                if (exists("test_result")) {{
+                    test_result
+                }} else {{
+                    list(
+                        status = "error",
+                        score = 0,
+                        max_score = 100,
+                        message = "测试代码未设置test_result变量"
+                    )
+                }}
+            }}, error = function(e) {{
+                # 返回错误信息
+                list(
+                    status = "error",
+                    score = 0,
+                    max_score = 100,
+                    message = paste("测试代码执行错误:", e$message)
+                )
+            }})
+            """)
 
-        # 设置输出捕获
-        ro.r('''
-        capture_output <- function() {
-          output_buffer <- character(0)
-          output_conn <- textConnection("output_buffer", "w", local=TRUE)
+            # 将R的list转换成Python字典
+            py_result = {}
+            for key in result.names:
+                py_result[key] = result[key][0]
 
-          # 保存当前的输出和消息接收器
-          old_output <- getOption("connectionObserver")
-          options(connectionObserver = NULL)  # 临时禁用连接观察器
-
-          # 重定向输出和消息
-          sink(output_conn, type="output")
-          sink(output_conn, type="message")
-
-          # 返回一个函数用于获取输出并恢复原始接收器
-          return(function() {
-            # 恢复原始接收器
-            sink(type="message", NULL)
-            sink(type="output", NULL)
-            options(connectionObserver = old_output)
-
-            # 关闭连接并返回缓冲区内容
-            close(output_conn)
-            return(output_buffer)
-          })
-        }
-
-        # 初始化输出捕获
-        get_output <- capture_output()
-        ''')
-
-        # 安全执行函数
-        ro.r('''
-        safe_eval <- function(code, env) {
-          tryCatch({
-            eval(parse(text=code), envir=env)
-            return(list(status="success", message="代码执行成功"))
-          }, error=function(e) {
-            return(list(status="error", message=paste("错误:", e$message)))
-          }, warning=function(w) {
-            warning(w$message)
-            return(list(status="warning", message=paste("警告:", w$message)))
-          })
-        }
-        ''')
-
-        # 执行学生代码
-        logger.info("开始执行学生代码...")
-        if student_code:
-            # 预处理代码，处理特殊字符
-            processed_code = student_code.replace('\\', '\\\\').replace('"', '\\"')
-            # 安全执行
-            result = ro.r(f'safe_eval("{processed_code}", student_env)')
-            status = result[0]
-            message = result[1]
-            logger.info(f"学生代码执行结果: {status} - {message}")
-
-            if status == "error":
-                # 获取输出
-                output_text = ro.r('get_output()')
-                output_list = safe_convert_r_output(output_text)
-                output_str = '\n'.join(output_list)
-
-                return {
-                    'status': 'error',
-                    'score': 0,
-                    'max_score': 100,
-                    'message': message,
-                    'output': output_str
-                }
-        else:
-            logger.info("学生代码为空")
-
-        # 修改执行测试代码的部分
-        logger.info("开始执行测试代码...")
-        if test_code:
-            # 创建测试环境，继承学生环境
-            ro.r('test_env <- new.env(parent=student_env)')
-
-            # 检查学生环境中的变量
-            student_vars = ro.r('ls(student_env)')
-            logger.info(
-                f"学生环境中的变量: {', '.join([str(var) for var in student_vars]) if len(student_vars) > 0 else '无'}")
-
-            try:
-                # 不要尝试在Python中处理R代码，而是将测试代码写入临时文件
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.R', delete=False, encoding='utf-8') as tmp_file:
-                    tmp_file_path = tmp_file.name
-
-                    # 添加测试环境设置和时间记录
-                    tmp_file.write("""
-        # 测试开始
-        test_start_time <- Sys.time()
-
-        # 创建测试环境，继承学生环境
-        if(!exists("test_env")) {
-          test_env <- new.env(parent=parent.env(globalenv()))
-          # 复制学生环境中的所有变量
-          student_vars <- ls(parent.env(globalenv()))
-          for(var in student_vars) {
-            assign(var, get(var, envir=parent.env(globalenv())), envir=test_env)
-          }
-        }
-
-        # 执行测试代码
-        """)
-
-                    # 写入原始测试代码，不做任何处理
-                    tmp_file.write(test_code)
-
-                    # 添加结果检查代码
-                    tmp_file.write("""
-
-        # 确保test_result存在
-        if(!exists("test_result", envir=test_env)) {
-          test_result <- list(
-            status = "error",
-            score = 0,
-            max_score = 100,
-            message = "测试代码未创建test_result变量"
-          )
-        }
-
-        # 记录测试时间
-        test_end_time <- Sys.time()
-        test_duration <- as.numeric(difftime(test_end_time, test_start_time, units="secs"))
-        test_result$duration <- test_duration
-
-        # 返回test_result到全局环境
-        assign("test_result", test_result, envir=globalenv())
-        """)
-
-                # 用R执行临时文件
-                logger.info(f"通过临时文件执行测试代码: {tmp_file_path}")
-                # 将路径中的反斜杠替换为正斜杠
-                converted_path = tmp_file_path.replace("\\", "/")
-                # 使用转换后的路径
-                ro.r(f'source("{converted_path}", local=test_env)')
-
-                # 检查测试结果
-                test_result_exists = ro.r('exists("test_result")')[0]
-                logger.info(f"测试结果变量存在: {test_result_exists}")
-
-                if test_result_exists:
-                    # 获取测试结果
-                    result_dict = {}
-
-                    # 获取测试结果的字段名
-                    result_names = ro.r('names(test_result)')
-                    logger.info(f"测试结果包含字段: {', '.join([str(name) for name in result_names])}")
-
-                    # 获取每个字段的值
-                    for key in result_names:
-                        key_str = str(key)
-                        try:
-                            value = ro.r(f'test_result${key_str}')
-                            if len(value) == 1:
-                                result_dict[key_str] = value[0]
-                            else:
-                                result_dict[key_str] = [v for v in value]
-                        except Exception as e:
-                            logger.error(f"获取测试结果字段 {key_str} 失败: {str(e)}")
-                            result_dict[key_str] = f"[获取失败: {str(e)}]"
-
-                    # 获取输出
-                    output_text = ro.r('get_output()')
-                    output_list = safe_convert_r_output(output_text)
-                    output_str = '\n'.join(output_list)
-
-                    # 确保必要字段存在
-                    required_fields = ['status', 'score', 'max_score', 'message']
-                    for field in required_fields:
-                        if field not in result_dict:
-                            result_dict[field] = 0 if field in ['score', 'max_score'] else (
-                                'error' if field == 'status' else '字段缺失')
-
-                    # 添加输出
-                    result_dict['output'] = output_str
-
-                    # 删除临时文件
-                    try:
-                        os.unlink(tmp_file_path)
-                    except Exception as e:
-                        logger.warning(f"删除临时文件失败: {str(e)}")
-
-                    logger.info(
-                        f"测试完成: 状态={result_dict.get('status')}, 得分={result_dict.get('score')}/{result_dict.get('max_score')}")
-                    return result_dict
-                else:
-                    # 没有找到测试结果
-                    output_text = ro.r('get_output()')
-                    output_list = safe_convert_r_output(output_text)
-                    output_str = '\n'.join(output_list)
-
-                    # 删除临时文件
-                    try:
-                        os.unlink(tmp_file_path)
-                    except Exception as e:
-                        logger.warning(f"删除临时文件失败: {str(e)}")
-
-                    return {
-                        'status': 'error',
-                        'score': 0,
-                        'max_score': 100,
-                        'message': '测试代码未返回结果 - test_result不存在',
-                        'output': output_str
-                    }
-            except Exception as e:
-                # 测试代码执行出错
-                logger.error(f"执行测试代码时出错: {str(e)}")
-                traceback_str = traceback.format_exc()
-
-                # 获取输出
-                try:
-                    output_text = ro.r('get_output()')
-                    output_list = safe_convert_r_output(output_text)
-                    output_str = '\n'.join(output_list)
-                except Exception:
-                    output_str = "无法获取输出"
-
-                return {
-                    'status': 'error',
-                    'score': 0,
-                    'max_score': 100,
-                    'message': f'测试执行错误: {str(e)}',
-                    'output': f"{output_str}\n\n{traceback_str}"
-                }
+            return py_result
     except Exception as e:
-        # 整个过程出错
-        logger.error(f"R环境执行总体异常: {str(e)}")
-        traceback_str = traceback.format_exc()
+        # 捕获所有异常
+        logger.error(f"R环境执行异常: {str(e)}")
         return {
             'status': 'error',
             'score': 0,
             'max_score': 100,
-            'message': f'R环境执行异常: {str(e)}',
-            'output': traceback_str
+            'message': f'R环境执行异常: {str(e)}'
         }

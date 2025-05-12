@@ -1,14 +1,12 @@
-# programming_grader.py - 改进的R编程题评分逻辑
+# grading/programming_grader.py - 更新为使用RCodeGrader
 import os
-import tempfile
-import json
 import logging
-from flask import current_app
-import r_setup
-from utils.sandbox import RCodeSandbox
 import re
+from flask import current_app
+# 导入新创建的R代码评分器
+from grading.r_code_grader import RCodeGrader
 
-# 配置日志记录
+# 配置日志
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger('programming_grader')
@@ -17,7 +15,7 @@ logger = logging.getLogger('programming_grader')
 class ProgrammingGrader:
     """R编程题评分器"""
 
-    def __init__(self, timeout=10, memory_limit=500, cpu_limit=1.0):
+    def __init__(self, timeout=30, memory_limit=500, cpu_limit=1.0):
         """
         初始化编程题评分器
 
@@ -29,11 +27,8 @@ class ProgrammingGrader:
         self.timeout = timeout
         self.memory_limit = memory_limit
         self.cpu_limit = cpu_limit
-        self.sandbox = RCodeSandbox(
-            timeout=timeout,
-            memory_limit=memory_limit,
-            cpu_limit=cpu_limit
-        )
+        # 使用新的R代码评分器
+        self.r_grader = RCodeGrader(timeout, memory_limit, cpu_limit)
         logger.info(f"初始化R编程题评分器: timeout={timeout}s, memory_limit={memory_limit}MB, cpu_limit={cpu_limit}")
 
     def grade(self, answer, question, max_points):
@@ -72,12 +67,8 @@ class ProgrammingGrader:
         required_packages = self._get_required_packages(question, student_code)
 
         try:
-            # 设置沙箱所需的包
-            self.sandbox.required_packages = required_packages
-
-            # 使用R代码沙箱执行评分
-            logger.info("执行沙箱评分...")
-            result = self.sandbox.execute(student_code, test_code)
+            # 使用新的R代码评分器
+            result = self.r_grader.grade(student_code, test_code, required_packages)
 
             # 解析结果
             status = result.get('status', 'error')

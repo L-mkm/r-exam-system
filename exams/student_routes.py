@@ -15,6 +15,7 @@ import json
 import r_setup
 from grading import AutoGrader
 
+
 @exams_bp.route('/student/exams')
 @login_required
 def student_exams():
@@ -186,6 +187,7 @@ def take_exam(exam_id):
                            remaining_seconds=remaining_seconds,
                            answer_form=answer_form)
 
+
 @exams_bp.route('/student/get_question/<int:exam_id>/<int:question_id>')
 @login_required
 def get_question(exam_id, question_id):
@@ -307,6 +309,7 @@ def get_answer_status(exam_id):
         current_app.logger.error(f"获取答题状态时出错: {str(e)}")
         return jsonify({'error': '服务器错误', 'message': f'获取答题状态时发生错误: {str(e)}'}), 500
 
+
 @exams_bp.route('/student/save_answer', methods=['POST'])
 @login_required
 def save_answer():
@@ -404,6 +407,72 @@ def save_answer():
         db.session.rollback()
         return jsonify({'success': False, 'message': f'保存答案失败: {str(e)}'}), 500
 
+
+@exams_bp.route('/student/run_code', methods=['POST'])
+@login_required
+def run_code():
+    """仅运行R代码并返回输出，不进行评分"""
+    if not current_user.is_student():
+        return jsonify({'success': False, 'message': '权限不足'}), 403
+
+    try:
+        from utils.sandbox import RCodeSandbox
+
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': '无效请求'}), 400
+
+        code = data.get('code', '')
+
+        # 创建安全的沙箱环境
+        sandbox = RCodeSandbox(timeout=5)  # 限制运行时间为5秒
+
+        # 简单运行代码，捕获输出
+        test_code = """
+        # 捕获输出
+        output <- capture.output({
+            tryCatch({
+                # 学生代码已在环境中执行，这里只需要打印变量和输出
+                # 列出环境中的所有变量
+                cat("环境中的变量:\\n")
+                print(ls())
+
+                # 如果有数据框，打印它们
+                for (var_name in ls()) {
+                    if (is.data.frame(get(var_name))) {
+                        cat("\\n数据框:", var_name, "\\n")
+                        print(head(get(var_name)))
+                    }
+                }
+            }, error = function(e) {
+                cat("执行错误:", e$message)
+            })
+        })
+
+        # 设置测试结果，只包含输出
+        test_result <- list(
+            status = "success",
+            score = 0,
+            max_score = 0,
+            message = "代码执行完成",
+            output = paste(output, collapse="\\n")
+        )
+        """
+
+        result = sandbox.execute(code, test_code)
+
+        return jsonify({
+            'success': True,
+            'output': result.get('output', '')
+        })
+    except Exception as e:
+        current_app.logger.error(f"运行代码失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'output': f"执行错误: {str(e)}"
+        })
+
+
 @exams_bp.route('/student/submit_exam/<int:exam_id>', methods=['POST'])
 @login_required
 def submit_exam(exam_id):
@@ -433,15 +502,25 @@ def submit_exam(exam_id):
         grader = AutoGrader(score.id)
         results = grader.grade_all()
 
+        # 添加：自动评分编程题
+        auto_grade_programming_questions(score)
+
+        # 更新数据库
+        db.session.commit()
+
+        # 重新计算总分
+        total_points = db.session.query(db.func.sum(StudentAnswer.points_earned)).filter(
+            StudentAnswer.score_id == score.id
+        ).scalar() or 0
+
+        score.total_score = total_points
+        db.session.commit()
+
         # 记录评分结果
         current_app.logger.info(f"自动评分结果: {results}")
 
         # 更新Flash消息，包含评分信息
-        flash_message = f'考试已提交，自动评分完成！共计得分: {results["points_earned"]}/{results["max_points"]}分。'
-
-        # 如果有编程题未评分，提示教师需手动评分
-        if results['by_type']['programming']['count'] > 0:
-            flash_message += ' 编程题将由教师手动评分。'
+        flash_message = f'考试已提交，自动评分完成！共计得分: {score.total_score}/{results["max_points"]}分。'
 
         flash(flash_message, 'success')
     except Exception as e:
@@ -451,7 +530,6 @@ def submit_exam(exam_id):
 
     db.session.commit()
 
-    # flash('考试已提交，谢谢参与！', 'success')
     return redirect(url_for('exams.view_result', exam_id=exam_id))
 
 
@@ -493,6 +571,7 @@ def view_result(exam_id):
                            exam=exam,
                            score=score,
                            question_answers=question_answers)
+
 
 @exams_bp.route('/student/check_time/<int:exam_id>')
 @login_required
@@ -547,6 +626,7 @@ def check_time(exam_id):
         current_app.logger.error(f"检查考试时间时出错: {str(e)}")
         return jsonify({'error': '服务器错误', 'message': f'检查考试时间时发生错误: {str(e)}'}), 500
 
+
 def auto_grade_choice_questions(score):
     """自动评分选择题"""
     # 获取所有选择题答案
@@ -595,6 +675,9 @@ def auto_grade_choice_questions(score):
 
 def auto_grade_programming_questions(score):
     """自动评分编程题（R语言）"""
+    # 导入沙箱
+    from utils.sandbox import RCodeSandbox
+
     # 获取所有编程题答案
     student_answers = StudentAnswer.query.join(
         Question, StudentAnswer.question_id == Question.id
@@ -616,26 +699,58 @@ def auto_grade_programming_questions(score):
         # 获取题目分值
         question_score = exam_question.score
 
-        # 运行R测试代码
+        # 获取学生代码和测试代码
         student_code = answer.answer_content or ""
         test_code = question.test_code
 
+        # 检查题目是否指定了所需R包
+        required_packages = []
+        if hasattr(question, 'required_packages') and question.required_packages:
+            required_packages = question.required_packages.split(',')
+
         try:
-            # 使用R运行测试
-            result = r_setup.run_r_test(student_code, test_code)
+            # 创建沙箱并执行评分
+            sandbox = RCodeSandbox(
+                timeout=30,  # 设置超时时间（秒）
+                memory_limit=500,  # 内存限制（MB）
+                required_packages=required_packages  # 所需R包
+            )
+
+            # 执行评分
+            result = sandbox.execute(student_code, test_code)
 
             # 计算得分
             if result['status'] == 'success':
-                answer.points_earned = float(result['score'])
-                answer.feedback = result['message']
+                # 将得分标准化为题目满分
+                score_ratio = min(1.0, max(0.0, float(result.get('score', 0)) / float(result.get('max_score', 100))))
+                answer.points_earned = round(question_score * score_ratio, 2)
+                answer.feedback = result.get('message', '自动评分完成')
+
+                # 如果有详细输出，添加到反馈中
+                if 'output' in result and result['output']:
+                    # 截断过长输出，避免数据库问题
+                    output = result['output']
+                    if len(output) > 5000:
+                        output = output[:5000] + "...(输出过长，已截断)"
+
+                    answer.feedback += f"\n\n程序输出:\n{output}"
             else:
                 answer.points_earned = 0
-                answer.feedback = result['message']
+                answer.feedback = result.get('message', '评分错误')
+
+                # 添加错误输出
+                if 'output' in result and result['output']:
+                    output = result['output']
+                    if len(output) > 5000:
+                        output = output[:5000] + "...(输出过长，已截断)"
+
+                    answer.feedback += f"\n\n程序输出:\n{output}"
         except Exception as e:
             answer.points_earned = 0
             answer.feedback = f"评分过程出错: {str(e)}"
+            current_app.logger.error(f"编程题评分出错: {str(e)}")
 
-    # 重新计算总分
+    # 保存结果
     db.session.commit()
 
     # 计算总得分
@@ -663,13 +778,24 @@ def admin_grade_exam(score_id):
         grader = AutoGrader(score.id)
         results = grader.grade_all()
 
+        # 添加：自动评分编程题
+        auto_grade_programming_questions(score)
+
         # 更新数据库
         db.session.commit()
 
-        flash(f'自动评分完成！学生得分: {results["points_earned"]}/{results["max_points"]}', 'success')
+        # 重新计算总分
+        total_points = db.session.query(db.func.sum(StudentAnswer.points_earned)).filter(
+            StudentAnswer.score_id == score.id
+        ).scalar() or 0
+
+        score.total_score = total_points
+        db.session.commit()
+
+        flash(f'自动评分完成！学生得分: {score.total_score}/{results["max_points"]}', 'success')
     except Exception as e:
         db.session.rollback()
         flash(f'自动评分失败: {str(e)}', 'danger')
 
     # 重定向回学生考试结果页面
-    return redirect(url_for('exams.view_result', exam_id=score.exam_id))
+    return redirect(url_for('exams.teacher_view_result', score_id=score.id))

@@ -130,6 +130,21 @@ class RCodeSandbox:
         if self.required_packages:
             logger.info(f"需要的R包: {', '.join(self.required_packages)}")
 
+    def _clean_code(self, code_text):
+        """清理代码中的非法字符和控制字符"""
+        if not isinstance(code_text, str):
+            return code_text
+
+        # 替换常见的控制字符
+        import re
+        # 匹配所有控制字符（ASCII值小于32的字符，除了制表符、换行符和回车符）
+        clean_text = re.sub(r'[\x00-\x08\x0b-\x0c\x0e-\x1f]', '', code_text)
+
+        # 确保使用统一的换行符
+        clean_text = clean_text.replace('\r\n', '\n')
+
+        return clean_text
+
     def execute(self, student_code, test_code):
         """
         在安全沙箱中执行R代码
@@ -144,6 +159,9 @@ class RCodeSandbox:
         logger.info("\n" + "=" * 80)
         logger.info(f"[执行时间]: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         logger.info(f"[R代码评分] - 学生代码长度: {len(student_code)}, 测试代码长度: {len(test_code)}")
+
+        student_code = self._clean_code(student_code)
+        test_code = self._clean_code(test_code)
 
         # 处理所需包
         if self.required_packages:
@@ -187,6 +205,9 @@ class RCodeSandbox:
     def _execute_with_process(self, student_code, test_code):
         """使用单独的R进程执行代码"""
         logger.info("使用R外部进程执行代码...")
+
+        student_code = self._clean_code(student_code)
+        test_code = self._clean_code(test_code)
 
         # 创建临时文件存储代码，确保使用utf-8编码
         with tempfile.NamedTemporaryFile(suffix='.R', mode='w', delete=False, encoding='utf-8') as student_file, \
